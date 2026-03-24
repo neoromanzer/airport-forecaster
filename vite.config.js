@@ -6,8 +6,14 @@ import { viteSingleFile } from 'vite-plugin-singlefile'
 export default defineConfig({
   plugins: [react(), tailwindcss(), viteSingleFile()],
   build: {
-    target: 'esnext',
+    target: 'es2015',
     assetsInlineLimit: 100_000_000,
     cssCodeSplit: false,
+    modulePreload: false,
+    rolldownOptions: {
+      output: {
+        inlineDynamicImports: true,
+      },
+    },
   },
 })
