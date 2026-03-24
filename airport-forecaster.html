@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>Airport Passenger Forecaster</title>
 
-  <!-- CDN dependencies (same stack as flight-delay-predictor) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
@@ -13,503 +12,419 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,'Segoe UI',Roboto,sans-serif;background:#020817;color:#e2e8f0;min-height:100vh}
 
-    body {
-      font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
-      background: #020817;
-      color: #e2e8f0;
-      min-height: 100vh;
-    }
+    .header{border-bottom:1px solid #1e293b;background:rgba(15,23,42,0.95);position:sticky;top:0;z-index:10;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+    .header-left{display:flex;align-items:center;gap:12px}
+    .header-title{font-size:18px;font-weight:700;color:#f8fafc}
+    .header-sub{font-size:12px;color:#475569;margin-top:2px}
+    .reset-btn{font-size:12px;padding:6px 14px;border-radius:8px;background:#1e293b;border:1px solid #334155;color:#94a3b8;cursor:pointer}
+    .reset-btn:hover{background:#334155}
 
-    /* Header */
-    .header {
-      border-bottom: 1px solid #1e293b;
-      background: rgba(15,23,42,0.95);
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      padding: 14px 24px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .header-left { display: flex; align-items: center; gap: 12px; }
-    .header-title { font-size: 18px; font-weight: 700; color: #f8fafc; }
-    .header-sub { font-size: 12px; color: #475569; margin-top: 2px; }
-    .reset-btn {
-      font-size: 12px; padding: 6px 14px; border-radius: 8px;
-      background: #1e293b; border: 1px solid #334155; color: #94a3b8;
-      cursor: pointer; transition: background 0.15s;
-    }
-    .reset-btn:hover { background: #334155; }
+    .layout{max-width:1400px;margin:0 auto;padding:24px;display:grid;grid-template-columns:360px 1fr;gap:24px}
+    @media(max-width:900px){.layout{grid-template-columns:1fr}}
+    .left-panel{display:flex;flex-direction:column;gap:16px}
+    .right-panel{display:flex;flex-direction:column;gap:20px}
 
-    /* Layout */
-    .layout {
-      max-width: 1400px;
-      margin: 0 auto;
-      padding: 24px;
-      display: grid;
-      grid-template-columns: 360px 1fr;
-      gap: 24px;
-    }
-    @media (max-width: 900px) {
-      .layout { grid-template-columns: 1fr; }
-    }
+    .section-card{border-radius:12px;padding:18px;background:rgba(15,23,42,0.6)}
+    .section-card.blue{border:1px solid rgba(59,130,246,0.3)}
+    .section-card.green{border:1px solid rgba(52,211,153,0.3)}
+    .section-card.purple{border:1px solid rgba(167,139,250,0.3)}
+    .section-header{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+    .section-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+    .section-icon.blue{background:rgba(59,130,246,0.15)}
+    .section-icon.green{background:rgba(52,211,153,0.15)}
+    .section-icon.purple{background:rgba(167,139,250,0.15)}
+    .section-label{font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase}
+    .section-label.blue{color:#60a5fa}
+    .section-label.green{color:#34d399}
+    .section-label.purple{color:#a78bfa}
+    .section-sub{font-size:11px;color:#475569;margin-top:1px}
 
-    .left-panel { display: flex; flex-direction: column; gap: 16px; }
-    .right-panel { display: flex; flex-direction: column; gap: 20px; }
+    .slider-wrap{margin-bottom:18px}
+    .slider-wrap:last-child{margin-bottom:0}
+    .slider-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+    .slider-label{font-size:12px;font-weight:500;color:#cbd5e1}
+    .slider-value{font-size:12px;font-weight:700;font-family:monospace}
+    .slider-value.pos{color:#34d399}
+    .slider-value.neg{color:#f87171}
+    .slider-value.zero{color:#475569}
+    .slider-desc{font-size:11px;color:#475569;margin-bottom:5px;line-height:1.4}
+    input[type=range]{width:100%;height:4px;border-radius:4px;background:#1e293b;outline:none;cursor:pointer;-webkit-appearance:none;appearance:none}
+    input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;cursor:pointer}
+    input[type=range].blue::-webkit-slider-thumb{background:#60a5fa}
+    input[type=range].green::-webkit-slider-thumb{background:#34d399}
+    input[type=range].purple::-webkit-slider-thumb{background:#a78bfa}
+    .slider-minmax{display:flex;justify-content:space-between;font-size:10px;color:#334155;margin-top:2px}
 
-    /* Section cards */
-    .section-card {
-      border-radius: 12px;
-      padding: 18px;
-      background: rgba(15,23,42,0.6);
-    }
-    .section-card.blue  { border: 1px solid rgba(59,130,246,0.3); }
-    .section-card.green { border: 1px solid rgba(52,211,153,0.3); }
-    .section-card.purple{ border: 1px solid rgba(167,139,250,0.3); }
-    .section-card.slate { border: 1px solid #1e293b; }
+    .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    @media(max-width:700px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+    .kpi-card{background:rgba(15,23,42,0.6);border:1px solid #1e293b;border-radius:12px;padding:14px 16px}
+    .kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:#475569;margin-bottom:4px}
+    .kpi-value{font-size:22px;font-weight:700;color:#f8fafc;font-family:monospace}
+    .kpi-delta{font-size:11px;font-weight:500;margin-top:3px}
+    .kpi-delta.pos{color:#34d399}
+    .kpi-delta.neg{color:#f87171}
+    .kpi-delta.neutral{color:#475569}
+    .kpi-sub{font-size:10px;color:#334155;margin-top:2px}
 
-    .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-    .section-icon {
-      width: 32px; height: 32px; border-radius: 8px;
-      display: flex; align-items: center; justify-content: center; font-size: 16px;
-    }
-    .section-icon.blue   { background: rgba(59,130,246,0.15); }
-    .section-icon.green  { background: rgba(52,211,153,0.15); }
-    .section-icon.purple { background: rgba(167,139,250,0.15); }
-    .section-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-    .section-label.blue   { color: #60a5fa; }
-    .section-label.green  { color: #34d399; }
-    .section-label.purple { color: #a78bfa; }
-    .section-sub { font-size: 11px; color: #475569; margin-top: 1px; }
+    .chart-panel{background:rgba(15,23,42,0.6);border:1px solid #1e293b;border-radius:16px;padding:20px}
+    .chart-title{font-size:13px;font-weight:600;color:#f8fafc;margin-bottom:3px}
+    .chart-sub{font-size:11px;color:#475569;margin-bottom:16px}
 
-    /* Slider control */
-    .slider-wrap { margin-bottom: 18px; }
-    .slider-wrap:last-child { margin-bottom: 0; }
-    .slider-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
-    .slider-label { font-size: 12px; font-weight: 500; color: #cbd5e1; }
-    .slider-value { font-size: 12px; font-weight: 700; font-family: monospace; }
-    .slider-value.pos { color: #34d399; }
-    .slider-value.neg { color: #f87171; }
-    .slider-value.zero { color: #475569; }
-    .slider-desc { font-size: 11px; color: #475569; margin-bottom: 5px; line-height: 1.4; }
-    input[type=range] {
-      width: 100%; height: 4px; border-radius: 4px;
-      background: #1e293b; outline: none; cursor: pointer;
-      -webkit-appearance: none; appearance: none;
-    }
-    input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none; appearance: none;
-      width: 14px; height: 14px; border-radius: 50%;
-      cursor: pointer; transition: transform 0.1s;
-    }
-    input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
-    input[type=range].blue::-webkit-slider-thumb  { background: #60a5fa; }
-    input[type=range].green::-webkit-slider-thumb { background: #34d399; }
-    input[type=range].purple::-webkit-slider-thumb{ background: #a78bfa; }
-    .slider-minmax { display: flex; justify-content: space-between; font-size: 10px; color: #334155; margin-top: 2px; }
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th{text-align:right;padding:8px 10px;color:#475569;font-weight:500;border-bottom:1px solid #1e293b}
+    th:first-child{text-align:left}
+    td{text-align:right;padding:7px 10px;border-bottom:1px solid rgba(30,41,59,0.5);font-family:monospace;color:#94a3b8}
+    td:first-child{text-align:left;font-family:system-ui;color:#cbd5e1;font-weight:500}
+    tr:hover td{background:rgba(30,41,59,0.4)}
+    .col-hi{color:#f8fafc!important}
+    .col-pos{color:#34d399!important}
+    .col-neg{color:#f87171!important}
+    .col-dim{color:#334155!important}
 
-    /* KPI cards */
-    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-    @media (max-width: 700px) { .kpi-grid { grid-template-columns: repeat(2,1fr); } }
-    .kpi-card {
-      background: rgba(15,23,42,0.6);
-      border: 1px solid #1e293b;
-      border-radius: 12px;
-      padding: 14px 16px;
-    }
-    .kpi-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: #475569; margin-bottom: 4px; }
-    .kpi-value { font-size: 22px; font-weight: 700; color: #f8fafc; font-family: monospace; }
-    .kpi-delta { font-size: 11px; font-weight: 500; margin-top: 3px; }
-    .kpi-delta.pos { color: #34d399; }
-    .kpi-delta.neg { color: #f87171; }
-    .kpi-delta.neutral { color: #475569; }
-    .kpi-sub { font-size: 10px; color: #334155; margin-top: 2px; }
+    .notes{background:rgba(15,23,42,0.4);border:1px solid #1e293b;border-radius:12px;padding:14px 16px;font-size:11px;color:#475569;line-height:1.7}
+    .notes-title{font-weight:600;color:#64748b;margin-bottom:6px}
+    .notes ul{padding-left:16px}
 
-    /* Chart panels */
-    .chart-panel {
-      background: rgba(15,23,42,0.6);
-      border: 1px solid #1e293b;
-      border-radius: 16px;
-      padding: 20px;
-    }
-    .chart-title { font-size: 13px; font-weight: 600; color: #f8fafc; margin-bottom: 3px; }
-    .chart-sub { font-size: 11px; color: #475569; margin-bottom: 16px; }
-
-    /* Table */
-    table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th { text-align: right; padding: 8px 10px; color: #475569; font-weight: 500; border-bottom: 1px solid #1e293b; }
-    th:first-child { text-align: left; }
-    td { text-align: right; padding: 7px 10px; border-bottom: 1px solid rgba(30,41,59,0.5); font-family: monospace; color: #94a3b8; }
-    td:first-child { text-align: left; font-family: system-ui; color: #cbd5e1; font-weight: 500; }
-    tr:hover td { background: rgba(30,41,59,0.4); }
-    .col-scenario { color: #f8fafc !important; }
-    .col-pos { color: #34d399 !important; }
-    .col-neg { color: #f87171 !important; }
-    .col-neutral { color: #334155 !important; }
-
-    /* Notes */
-    .notes {
-      background: rgba(15,23,42,0.4);
-      border: 1px solid #1e293b;
-      border-radius: 12px;
-      padding: 14px 16px;
-      font-size: 11px;
-      color: #475569;
-      line-height: 1.7;
-    }
-    .notes-title { font-weight: 600; color: #64748b; margin-bottom: 6px; }
-    .notes ul { padding-left: 16px; }
-
-    /* Tooltip */
-    .custom-tooltip {
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 8px;
-      padding: 10px 14px;
-      font-size: 12px;
-    }
-    .tt-label { font-weight: 700; color: #f1f5f9; margin-bottom: 6px; }
-    .tt-row { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 2px; }
+    .tt{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:10px 14px;font-size:12px}
+    .tt-head{font-weight:700;color:#f1f5f9;margin-bottom:6px}
+    .tt-row{display:flex;justify-content:space-between;gap:20px;margin-bottom:2px}
   </style>
 </head>
 <body>
-  <div id="root"></div>
+<div id="root"></div>
 
-  <script type="text/babel">
-    const { useState, useMemo } = React;
-    const {
-      AreaChart, Area, LineChart, Line,
-      XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-      ResponsiveContainer, ReferenceLine
-    } = Recharts;
+<script type="text/babel">
+  const { useState, useMemo } = React;
+  const {
+    AreaChart, Area, LineChart, Line,
+    XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+    ResponsiveContainer, ReferenceLine
+  } = Recharts;
 
-    // ─── Forecast model ───────────────────────────────────────────────
+  /* ── Model ─────────────────────────────────────────────── */
 
-    const BASE_YEAR = 2024;
-    const BASE_PAX  = 12_500_000;
-    const GDP_ELAST  = 1.7;
-    const FUEL_ELAST = -0.4;
+  var BASE_YEAR  = 2024;
+  var BASE_PAX   = 12500000;
+  var GDP_ELAST  = 1.7;
+  var FUEL_ELAST = -0.4;
 
-    function macroMult(i, p) {
-      return Math.pow(1 + (p.gdpGrowth / 100) * GDP_ELAST, i)
-           * Math.pow(1 + p.tourismGrowth / 100, i)
-           * Math.pow(1 + (p.fuelPriceChange / 100) * FUEL_ELAST, i);
+  function macroMult(i, p) {
+    return Math.pow(1 + (p.gdpGrowth / 100) * GDP_ELAST, i)
+         * Math.pow(1 + p.tourismGrowth / 100, i)
+         * Math.pow(1 + (p.fuelPriceChange / 100) * FUEL_ELAST, i);
+  }
+
+  function airlineMult(i, p) {
+    var cap    = Math.pow(1 + p.mainAirlineCapacityChange / 100, i);
+    var routes = (i >= 1 && p.newRoutesImpact > 0) ? 1 + (p.newRoutesImpact / 100) * Math.min(i, 3) / 3 : 1;
+    var lcc    = (i >= 2 && p.lccEntryBoost > 0)   ? 1 + p.lccEntryBoost / 100 : 1;
+    return cap * routes * lcc;
+  }
+
+  function airportMult(i, p) {
+    var inc  = (i >= 1 && p.incentiveProgram > 0)       ? 1 + (p.incentiveProgram / 100) * Math.min(i, 2) / 2 : 1;
+    var term = (i >= 2 && p.terminalExpansion > 0)      ? 1 + p.terminalExpansion / 100 : 1;
+    var conn = (i >= 1 && p.connectivityImprovement > 0) ? 1 + p.connectivityImprovement / 100 : 1;
+    return inc * term * conn;
+  }
+
+  function buildForecast(params) {
+    var out = [];
+    for (var i = 0; i <= 7; i++) {
+      var mac = macroMult(i, params);
+      var air = airlineMult(i, params);
+      var apt = airportMult(i, params);
+      var pax = Math.round(BASE_PAX * mac * air * apt);
+      out.push({ year: BASE_YEAR + i, pax: pax, paxM: +(pax / 1000000).toFixed(2), mac: mac, air: air, apt: apt });
     }
+    return out;
+  }
 
-    function airlineMult(i, p) {
-      const cap  = Math.pow(1 + p.mainAirlineCapacityChange / 100, i);
-      const routes = (i >= 1 && p.newRoutesImpact > 0)
-        ? 1 + (p.newRoutesImpact / 100) * Math.min(i, 3) / 3 : 1;
-      const lcc = (i >= 2 && p.lccEntryBoost > 0)
-        ? 1 + p.lccEntryBoost / 100 : 1;
-      return cap * routes * lcc;
-    }
+  function cagr(s, e, y) { return (Math.pow(e / s, 1 / y) - 1) * 100; }
 
-    function airportMult(i, p) {
-      const inc  = (i >= 1 && p.incentiveProgram > 0)
-        ? 1 + (p.incentiveProgram / 100) * Math.min(i, 2) / 2 : 1;
-      const term = (i >= 2 && p.terminalExpansion > 0)
-        ? 1 + p.terminalExpansion / 100 : 1;
-      const conn = (i >= 1 && p.connectivityImprovement > 0)
-        ? 1 + p.connectivityImprovement / 100 : 1;
-      return inc * term * conn;
-    }
+  var DEFAULTS = {
+    gdpGrowth: 2.0, tourismGrowth: 1.0, fuelPriceChange: 0,
+    mainAirlineCapacityChange: 0, newRoutesImpact: 0, lccEntryBoost: 0,
+    incentiveProgram: 0, terminalExpansion: 0, connectivityImprovement: 0
+  };
 
-    function forecast(params, years = 7) {
-      return Array.from({ length: years + 1 }, (_, i) => {
-        const mac = macroMult(i, params);
-        const air = airlineMult(i, params);
-        const apt = airportMult(i, params);
-        const pax = Math.round(BASE_PAX * mac * air * apt);
-        return {
-          year: BASE_YEAR + i,
-          passengers: pax,
-          paxM: +(pax / 1e6).toFixed(2),
-          mac, air, apt
-        };
-      });
-    }
+  var BASELINE = buildForecast(DEFAULTS);
 
-    const BASELINE_PARAMS = {
-      gdpGrowth: 2.0, tourismGrowth: 1.0, fuelPriceChange: 0,
-      mainAirlineCapacityChange: 0, newRoutesImpact: 0, lccEntryBoost: 0,
-      incentiveProgram: 0, terminalExpansion: 0, connectivityImprovement: 0
-    };
+  /* ── Sub-components ────────────────────────────────────── */
 
-    const baseline = forecast(BASELINE_PARAMS);
+  function Slider(props) {
+    var label = props.label, value = props.value, min = props.min, max = props.max;
+    var step = props.step || 0.5, unit = props.unit || '%', desc = props.desc;
+    var color = props.color, onChange = props.onChange;
+    var cls = value > 0 ? 'pos' : value < 0 ? 'neg' : 'zero';
+    return (
+      <div className="slider-wrap">
+        <div className="slider-top">
+          <span className="slider-label">{label}</span>
+          <span className={'slider-value ' + cls}>{value > 0 ? '+' : ''}{value}{unit}</span>
+        </div>
+        {desc && <div className="slider-desc">{desc}</div>}
+        <input type="range" className={color} min={min} max={max} step={step} value={value}
+          onChange={function(e){ onChange(parseFloat(e.target.value)); }} />
+        <div className="slider-minmax"><span>{min}{unit}</span><span>{max}{unit}</span></div>
+      </div>
+    );
+  }
 
-    function cagr(s, e, y) { return (Math.pow(e / s, 1 / y) - 1) * 100; }
-
-    // ─── Components ───────────────────────────────────────────────────
-
-    function SliderControl({ label, value, min, max, step = 0.5, unit = '%', desc, color, onChange }) {
-      const cls = value > 0 ? 'pos' : value < 0 ? 'neg' : 'zero';
-      return (
-        <div className="slider-wrap">
-          <div className="slider-top">
-            <span className="slider-label">{label}</span>
-            <span className={`slider-value ${cls}`}>{value > 0 ? '+' : ''}{value}{unit}</span>
+  function Card(props) {
+    var color = props.color, icon = props.icon, title = props.title, sub = props.sub;
+    return (
+      <div className={'section-card ' + color}>
+        <div className="section-header">
+          <div className={'section-icon ' + color}>{icon}</div>
+          <div>
+            <div className={'section-label ' + color}>{title}</div>
+            {sub && <div className="section-sub">{sub}</div>}
           </div>
-          {desc && <div className="slider-desc">{desc}</div>}
-          <input
-            type="range" className={color}
-            min={min} max={max} step={step} value={value}
-            onChange={e => onChange(parseFloat(e.target.value))}
-          />
-          <div className="slider-minmax"><span>{min}{unit}</span><span>{max}{unit}</span></div>
         </div>
-      );
-    }
+        {props.children}
+      </div>
+    );
+  }
 
-    function SectionCard({ color, icon, title, sub, children }) {
-      return (
-        <div className={`section-card ${color}`}>
-          <div className="section-header">
-            <div className={`section-icon ${color}`}>{icon}</div>
-            <div>
-              <div className={`section-label ${color}`}>{title}</div>
-              {sub && <div className="section-sub">{sub}</div>}
-            </div>
-          </div>
-          {children}
-        </div>
-      );
-    }
+  function Kpi(props) {
+    var label = props.label, value = props.value, delta = props.delta, unit = props.unit || '', sub = props.sub;
+    var cls = delta > 0 ? 'pos' : delta < 0 ? 'neg' : 'neutral';
+    var arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '—';
+    return (
+      <div className="kpi-card">
+        <div className="kpi-label">{label}</div>
+        <div className="kpi-value">{value}</div>
+        {delta !== undefined && <div className={'kpi-delta ' + cls}>{arrow} {Math.abs(delta).toFixed(2)}{unit} vs baseline</div>}
+        {sub && <div className="kpi-sub">{sub}</div>}
+      </div>
+    );
+  }
 
-    function KpiCard({ label, value, delta, unit = '', sub }) {
-      const cls = delta > 0 ? 'pos' : delta < 0 ? 'neg' : 'neutral';
-      const arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '—';
-      return (
-        <div className="kpi-card">
-          <div className="kpi-label">{label}</div>
-          <div className="kpi-value">{value}</div>
-          {delta !== undefined && (
-            <div className={`kpi-delta ${cls}`}>{arrow} {Math.abs(delta).toFixed(2)}{unit} vs baseline</div>
-          )}
-          {sub && <div className="kpi-sub">{sub}</div>}
-        </div>
-      );
-    }
-
-    function CustomTooltip({ active, payload, label }) {
-      if (!active || !payload?.length) return null;
-      return (
-        <div className="custom-tooltip">
-          <div className="tt-label">{label}</div>
-          {payload.map(p => (
+  function ChartTip(props) {
+    var active = props.active, payload = props.payload, label = props.label;
+    if (!active || !payload || !payload.length) return null;
+    return (
+      <div className="tt">
+        <div className="tt-head">{label}</div>
+        {payload.map(function(p) {
+          var val = typeof p.value === 'number'
+            ? (p.name === 'Macro' || p.name === 'Airline' || p.name === 'Airport'
+                ? (p.value > 0 ? '+' : '') + p.value + '%'
+                : p.value.toFixed(2) + 'M pax')
+            : p.value;
+          var name = p.name === 'forecast' ? 'Scenario' : p.name === 'baseline' ? 'Baseline' : p.name;
+          return (
             <div key={p.dataKey} className="tt-row">
-              <span style={{ color: p.color }}>{p.name === 'forecast' ? 'Scenario' : p.name === 'baseline' ? 'Baseline' : p.name}</span>
-              <span style={{ color: '#fff' }}>{typeof p.value === 'number' ? (p.name === 'Macro' || p.name === 'Airline' || p.name === 'Airport' ? `${p.value > 0 ? '+' : ''}${p.value}%` : `${p.value.toFixed(2)}M pax`) : p.value}</span>
+              <span style={{color: p.color}}>{name}</span>
+              <span style={{color:'#fff'}}>{val}</span>
             </div>
-          ))}
-        </div>
-      );
+          );
+        })}
+      </div>
+    );
+  }
+
+  /* ── App ───────────────────────────────────────────────── */
+
+  function App() {
+    var state = useState(DEFAULTS);
+    var p = state[0];
+    var setP = state[1];
+
+    function set(key) {
+      return function(val) {
+        setP(function(prev) {
+          var next = Object.assign({}, prev);
+          next[key] = val;
+          return next;
+        });
+      };
     }
 
-    // ─── App ──────────────────────────────────────────────────────────
+    var fc = useMemo(function() { return buildForecast(p); }, [p]);
 
-    const DEFAULT = { ...BASELINE_PARAMS };
+    var chartData = fc.map(function(f, i) {
+      return { year: f.year, forecast: f.paxM, baseline: BASELINE[i].paxM };
+    });
 
-    function App() {
-      const [p, setP] = useState(DEFAULT);
-      const set = k => v => setP(prev => ({ ...prev, [k]: v }));
-
-      const fc = useMemo(() => forecast(p), [p]);
-
-      const chartData = fc.map((f, i) => ({
-        year: f.year, forecast: f.paxM, baseline: baseline[i].paxM
-      }));
-
-      const contribData = fc.slice(1).map(f => ({
+    var contribData = fc.slice(1).map(function(f) {
+      return {
         year: f.year,
         Macro:   +((f.mac - 1) * 100).toFixed(1),
         Airline: +((f.air - 1) * 100).toFixed(1),
-        Airport: +((f.apt - 1) * 100).toFixed(1),
-      }));
+        Airport: +((f.apt - 1) * 100).toFixed(1)
+      };
+    });
 
-      const last = fc[fc.length - 1];
-      const lastB = baseline[baseline.length - 1];
-      const first = fc[0];
-      const fcCAGR = cagr(first.passengers, last.passengers, 7);
-      const blCAGR = cagr(first.passengers, lastB.passengers, 7);
-      const deltaPax = +(last.paxM - lastB.paxM).toFixed(2);
-      const deltaCAGR = +(fcCAGR - blCAGR).toFixed(2);
-      const hasChanges = JSON.stringify(p) !== JSON.stringify(DEFAULT);
+    var last  = fc[fc.length - 1];
+    var lastB = BASELINE[BASELINE.length - 1];
+    var first = fc[0];
+    var fcCAGR  = cagr(first.pax, last.pax, 7);
+    var blCAGR  = cagr(first.pax, lastB.pax, 7);
+    var deltaPax  = +(last.paxM - lastB.paxM).toFixed(2);
+    var deltaCAGR = +(fcCAGR - blCAGR).toFixed(2);
+    var hasChanges = JSON.stringify(p) !== JSON.stringify(DEFAULTS);
 
-      return (
-        <>
-          {/* Header */}
-          <div className="header">
-            <div className="header-left">
-              <span style={{fontSize:24}}>✈️</span>
-              <div>
-                <div className="header-title">Airport Passenger Forecaster</div>
-                <div className="header-sub">Parametric demand model · Base: 12.5M pax (2024) · Horizon: 2031</div>
-              </div>
-            </div>
-            {hasChanges && (
-              <button className="reset-btn" onClick={() => setP(DEFAULT)}>Reset all</button>
-            )}
-          </div>
-
-          <div className="layout">
-            {/* ── Left: controls ── */}
-            <div className="left-panel">
-
-              <SectionCard color="blue" icon="🌍" title="Macro Environment" sub="Drives underlying travel demand">
-                <SliderControl label="GDP Growth (annual %)" value={p.gdpGrowth} min={-3} max={6} step={0.1} color="blue"
-                  desc="Real GDP growth. Elasticity 1.7× on air travel demand."
-                  onChange={set('gdpGrowth')} />
-                <SliderControl label="Tourism Demand Growth (%)" value={p.tourismGrowth} min={-5} max={10} step={0.5} color="blue"
-                  desc="Incremental demand beyond GDP — visa liberalisation, marketing, events."
-                  onChange={set('tourismGrowth')} />
-                <SliderControl label="Fuel Price Change (%)" value={p.fuelPriceChange} min={-30} max={50} step={2.5} color="blue"
-                  desc="Affects airline seat supply. Elasticity −0.4× (capacity shrinks when fuel spikes)."
-                  onChange={set('fuelPriceChange')} />
-              </SectionCard>
-
-              <SectionCard color="green" icon="🛫" title="Main Airline" sub="Dominant carrier strategic decisions">
-                <SliderControl label="Capacity Change (annual %)" value={p.mainAirlineCapacityChange} min={-15} max={20} step={0.5} color="green"
-                  desc="Seat capacity growth/decline of the dominant carrier year-on-year."
-                  onChange={set('mainAirlineCapacityChange')} />
-                <SliderControl label="New Routes Impact (%)" value={p.newRoutesImpact} min={0} max={25} step={1} color="green"
-                  desc="Incremental pax from new long-haul or international routes — ramps over 3 years."
-                  onChange={set('newRoutesImpact')} />
-                <SliderControl label="LCC / New Entrant Boost (%)" value={p.lccEntryBoost} min={0} max={20} step={1} color="green"
-                  desc="Low-cost carrier or new airline entry. Stimulates demand from year 2."
-                  onChange={set('lccEntryBoost')} />
-              </SectionCard>
-
-              <SectionCard color="purple" icon="🏗️" title="Airport Levers" sub="What the airport can control directly">
-                <SliderControl label="Airline Incentive Program (%)" value={p.incentiveProgram} min={0} max={15} step={0.5} color="purple"
-                  desc="Fee discounts, marketing co-funding to attract airlines. Ramps over 2 years."
-                  onChange={set('incentiveProgram')} />
-                <SliderControl label="Terminal Expansion (%)" value={p.terminalExpansion} min={0} max={40} step={1} color="purple"
-                  desc="Capacity uplift from new terminal or additional gates. Available from year 2."
-                  onChange={set('terminalExpansion')} />
-                <SliderControl label="Ground Connectivity (%)" value={p.connectivityImprovement} min={0} max={15} step={0.5} color="purple"
-                  desc="Rail, metro or road links expanding the catchment area. Effect from year 1."
-                  onChange={set('connectivityImprovement')} />
-              </SectionCard>
-
-              <div className="notes">
-                <div className="notes-title">Model assumptions</div>
-                <ul>
-                  <li>GDP elasticity 1.7× (IATA average for mature markets)</li>
-                  <li>Fuel elasticity −0.4× on airline seat supply</li>
-                  <li>New routes ramp linearly over 3 years</li>
-                  <li>LCC entry & incentive programs effective from year 2</li>
-                  <li>Terminal expansion unlocks from year 2</li>
-                  <li>Multipliers compound independently on 12.5M base</li>
-                </ul>
-              </div>
-            </div>
-
-            {/* ── Right: charts & KPIs ── */}
-            <div className="right-panel">
-
-              {/* KPIs */}
-              <div className="kpi-grid">
-                <KpiCard label={`Pax ${last.year}E`} value={`${last.paxM}M`} delta={deltaPax} unit="M" sub="scenario passengers" />
-                <KpiCard label="CAGR 2024–2031" value={`${fcCAGR.toFixed(1)}%`} delta={deltaCAGR} unit="%" sub="compound annual growth" />
-                <KpiCard label="vs Baseline 2031" value={`${deltaPax >= 0 ? '+' : ''}${deltaPax}M`} sub="incremental passengers" />
-                <KpiCard label="Growth multiple" value={`×${(last.passengers / first.passengers).toFixed(2)}`} sub={`baseline ×${(lastB.passengers / first.passengers).toFixed(2)}`} />
-              </div>
-
-              {/* Area chart */}
-              <div className="chart-panel">
-                <div className="chart-title">Passenger Forecast 2024–2031</div>
-                <div className="chart-sub">Million passengers per year — scenario vs baseline</div>
-                <ResponsiveContainer width="100%" height={280}>
-                  <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="gF" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.35} />
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="gB" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%"  stopColor="#64748b" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#64748b" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                    <XAxis dataKey="year" tick={{ fill: '#475569', fontSize: 12 }} />
-                    <YAxis tick={{ fill: '#475569', fontSize: 12 }} tickFormatter={v => `${v}M`} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend formatter={v => <span style={{color:'#94a3b8',fontSize:12}}>{v === 'forecast' ? 'Scenario' : 'Baseline'}</span>} />
-                    <Area type="monotone" dataKey="baseline" stroke="#475569" strokeWidth={1.5} strokeDasharray="5 3" fill="url(#gB)" name="baseline" />
-                    <Area type="monotone" dataKey="forecast"  stroke="#3b82f6" strokeWidth={2.5} fill="url(#gF)" name="forecast" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Contribution chart */}
-              <div className="chart-panel">
-                <div className="chart-title">Driver Contributions</div>
-                <div className="chart-sub">Cumulative % uplift above 2024 base, broken out by driver</div>
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={contribData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                    <XAxis dataKey="year" tick={{ fill: '#475569', fontSize: 12 }} />
-                    <YAxis tick={{ fill: '#475569', fontSize: 12 }} tickFormatter={v => `${v > 0 ? '+' : ''}${v}%`} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <ReferenceLine y={0} stroke="#334155" />
-                    <Legend formatter={v => <span style={{color:'#94a3b8',fontSize:12}}>{v}</span>} />
-                    <Line type="monotone" dataKey="Macro"   stroke="#60a5fa" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="Airline" stroke="#34d399" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="Airport" stroke="#a78bfa" strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Table */}
-              <div className="chart-panel">
-                <div className="chart-title">Year-by-Year Forecast</div>
-                <div style={{overflowX:'auto', marginTop: 8}}>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th style={{textAlign:'left',color:'#475569'}}>Year</th>
-                        <th style={{color:'#60a5fa'}}>Scenario</th>
-                        <th>Baseline</th>
-                        <th>Delta</th>
-                        <th>YoY growth</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {fc.map((f, i) => {
-                        const b = baseline[i];
-                        const delta = +(f.paxM - b.paxM).toFixed(2);
-                        const yoy = i === 0 ? null : ((f.passengers / fc[i-1].passengers - 1) * 100);
-                        return (
-                          <tr key={f.year}>
-                            <td>{f.year}{i === 0 ? ' (base)' : 'E'}</td>
-                            <td className="col-scenario">{f.paxM}M</td>
-                            <td>{b.paxM}M</td>
-                            <td className={delta > 0 ? 'col-pos' : delta < 0 ? 'col-neg' : 'col-neutral'}>
-                              {delta === 0 ? '—' : `${delta > 0 ? '+' : ''}${delta}M`}
-                            </td>
-                            <td className={yoy === null ? 'col-neutral' : yoy > 0 ? 'col-pos' : 'col-neg'}>
-                              {yoy === null ? '—' : `${yoy > 0 ? '+' : ''}${yoy.toFixed(1)}%`}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
+    return (
+      <div>
+        <div className="header">
+          <div className="header-left">
+            <span style={{fontSize:24}}>✈️</span>
+            <div>
+              <div className="header-title">Airport Passenger Forecaster</div>
+              <div className="header-sub">Parametric demand model · Base: 12.5M pax (2024) · Horizon: 2031</div>
             </div>
           </div>
-        </>
-      );
-    }
+          {hasChanges && <button className="reset-btn" onClick={function(){ setP(DEFAULTS); }}>Reset all</button>}
+        </div>
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-  </script>
+        <div className="layout">
+
+          {/* Left panel */}
+          <div className="left-panel">
+
+            <Card color="blue" icon="🌍" title="Macro Environment" sub="Drives underlying travel demand">
+              <Slider label="GDP Growth (annual %)" value={p.gdpGrowth} min={-3} max={6} step={0.1} color="blue"
+                desc="Real GDP growth. Elasticity 1.7x on air travel demand." onChange={set('gdpGrowth')} />
+              <Slider label="Tourism Demand Growth (%)" value={p.tourismGrowth} min={-5} max={10} step={0.5} color="blue"
+                desc="Incremental demand beyond GDP — visa liberalisation, marketing, events." onChange={set('tourismGrowth')} />
+              <Slider label="Fuel Price Change (%)" value={p.fuelPriceChange} min={-30} max={50} step={2.5} color="blue"
+                desc="Affects airline seat supply. Elasticity -0.4x (capacity shrinks when fuel spikes)." onChange={set('fuelPriceChange')} />
+            </Card>
+
+            <Card color="green" icon="🛫" title="Main Airline" sub="Dominant carrier strategic decisions">
+              <Slider label="Capacity Change (annual %)" value={p.mainAirlineCapacityChange} min={-15} max={20} step={0.5} color="green"
+                desc="Seat capacity growth/decline of the dominant carrier year-on-year." onChange={set('mainAirlineCapacityChange')} />
+              <Slider label="New Routes Impact (%)" value={p.newRoutesImpact} min={0} max={25} step={1} color="green"
+                desc="Incremental pax from new long-haul or international routes — ramps over 3 years." onChange={set('newRoutesImpact')} />
+              <Slider label="LCC / New Entrant Boost (%)" value={p.lccEntryBoost} min={0} max={20} step={1} color="green"
+                desc="Low-cost carrier or new airline entry. Stimulates demand from year 2." onChange={set('lccEntryBoost')} />
+            </Card>
+
+            <Card color="purple" icon="🏗️" title="Airport Levers" sub="What the airport can control directly">
+              <Slider label="Airline Incentive Program (%)" value={p.incentiveProgram} min={0} max={15} step={0.5} color="purple"
+                desc="Fee discounts, marketing co-funding to attract airlines. Ramps over 2 years." onChange={set('incentiveProgram')} />
+              <Slider label="Terminal Expansion (%)" value={p.terminalExpansion} min={0} max={40} step={1} color="purple"
+                desc="Capacity uplift from new terminal or additional gates. Available from year 2." onChange={set('terminalExpansion')} />
+              <Slider label="Ground Connectivity (%)" value={p.connectivityImprovement} min={0} max={15} step={0.5} color="purple"
+                desc="Rail, metro or road links expanding the catchment area. Effect from year 1." onChange={set('connectivityImprovement')} />
+            </Card>
+
+            <div className="notes">
+              <div className="notes-title">Model assumptions</div>
+              <ul>
+                <li>GDP elasticity 1.7x (IATA average for mature markets)</li>
+                <li>Fuel elasticity -0.4x on airline seat supply</li>
+                <li>New routes ramp linearly over 3 years</li>
+                <li>LCC entry and incentive programs effective from year 2</li>
+                <li>Terminal expansion unlocks from year 2</li>
+                <li>Multipliers compound independently on 12.5M base</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Right panel */}
+          <div className="right-panel">
+
+            <div className="kpi-grid">
+              <Kpi label={'Pax ' + last.year + 'E'} value={last.paxM + 'M'} delta={deltaPax} unit="M" sub="scenario passengers" />
+              <Kpi label="CAGR 2024-2031" value={fcCAGR.toFixed(1) + '%'} delta={deltaCAGR} unit="%" sub="compound annual growth" />
+              <Kpi label="vs Baseline 2031" value={(deltaPax >= 0 ? '+' : '') + deltaPax + 'M'} sub="incremental passengers" />
+              <Kpi label="Growth multiple" value={'x' + (last.pax / first.pax).toFixed(2)} sub={'baseline x' + (lastB.pax / first.pax).toFixed(2)} />
+            </div>
+
+            <div className="chart-panel">
+              <div className="chart-title">Passenger Forecast 2024–2031</div>
+              <div className="chart-sub">Million passengers per year — scenario vs baseline</div>
+              <ResponsiveContainer width="100%" height={280}>
+                <AreaChart data={chartData} margin={{top:4,right:8,left:0,bottom:0}}>
+                  <defs>
+                    <linearGradient id="gF" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.35}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="gB" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor="#64748b" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#64748b" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b"/>
+                  <XAxis dataKey="year" tick={{fill:'#475569',fontSize:12}}/>
+                  <YAxis tick={{fill:'#475569',fontSize:12}} tickFormatter={function(v){ return v + 'M'; }}/>
+                  <Tooltip content={<ChartTip/>}/>
+                  <Legend formatter={function(v){ return React.createElement('span',{style:{color:'#94a3b8',fontSize:12}}, v === 'forecast' ? 'Scenario' : 'Baseline'); }}/>
+                  <Area type="monotone" dataKey="baseline" stroke="#475569" strokeWidth={1.5} strokeDasharray="5 3" fill="url(#gB)" name="baseline"/>
+                  <Area type="monotone" dataKey="forecast"  stroke="#3b82f6" strokeWidth={2.5} fill="url(#gF)" name="forecast"/>
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="chart-panel">
+              <div className="chart-title">Driver Contributions</div>
+              <div className="chart-sub">Cumulative % uplift above 2024 base, broken out by driver</div>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={contribData} margin={{top:4,right:8,left:0,bottom:0}}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b"/>
+                  <XAxis dataKey="year" tick={{fill:'#475569',fontSize:12}}/>
+                  <YAxis tick={{fill:'#475569',fontSize:12}} tickFormatter={function(v){ return (v > 0 ? '+' : '') + v + '%'; }}/>
+                  <Tooltip content={<ChartTip/>}/>
+                  <ReferenceLine y={0} stroke="#334155"/>
+                  <Legend formatter={function(v){ return React.createElement('span',{style:{color:'#94a3b8',fontSize:12}},v); }}/>
+                  <Line type="monotone" dataKey="Macro"   stroke="#60a5fa" strokeWidth={2} dot={false}/>
+                  <Line type="monotone" dataKey="Airline" stroke="#34d399" strokeWidth={2} dot={false}/>
+                  <Line type="monotone" dataKey="Airport" stroke="#a78bfa" strokeWidth={2} dot={false}/>
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="chart-panel">
+              <div className="chart-title">Year-by-Year Forecast</div>
+              <div style={{overflowX:'auto',marginTop:8}}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={{textAlign:'left',color:'#475569'}}>Year</th>
+                      <th style={{color:'#60a5fa'}}>Scenario</th>
+                      <th>Baseline</th>
+                      <th>Delta</th>
+                      <th>YoY growth</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fc.map(function(f, i) {
+                      var b = BASELINE[i];
+                      var delta = +(f.paxM - b.paxM).toFixed(2);
+                      var yoy = i === 0 ? null : ((f.pax / fc[i-1].pax - 1) * 100);
+                      return (
+                        <tr key={f.year}>
+                          <td>{f.year}{i === 0 ? ' (base)' : 'E'}</td>
+                          <td className="col-hi">{f.paxM}M</td>
+                          <td>{b.paxM}M</td>
+                          <td className={delta > 0 ? 'col-pos' : delta < 0 ? 'col-neg' : 'col-dim'}>
+                            {delta === 0 ? '—' : (delta > 0 ? '+' : '') + delta + 'M'}
+                          </td>
+                          <td className={yoy === null ? 'col-dim' : yoy > 0 ? 'col-pos' : 'col-neg'}>
+                            {yoy === null ? '—' : (yoy > 0 ? '+' : '') + yoy.toFixed(1) + '%'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App, null));
+</script>
 </body>
 </html>
