@@ -10,6 +10,16 @@ import SectionCard from './components/SectionCard';
 import MetricCard from './components/MetricCard';
 import './index.css';
 
+// Historical actuals (pre-2024) — representative data for a 12.5M pax airport
+const HISTORICAL_DATA = [
+  { year: 2018, passengersM: 10.8 },
+  { year: 2019, passengersM: 11.9 },
+  { year: 2020, passengersM: 4.5 },  // COVID-19 impact
+  { year: 2021, passengersM: 6.9 },  // partial recovery
+  { year: 2022, passengersM: 10.1 }, // strong rebound
+  { year: 2023, passengersM: 11.6 }, // near pre-COVID levels
+];
+
 const DEFAULT_PARAMS = {
   // Macro
   gdpGrowth: 2.0,
@@ -38,12 +48,15 @@ const CustomTooltip = ({ active, payload, label }) => {
   return (
     <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, padding: '10px 14px', fontSize: 12 }}>
       <p style={{ fontWeight: 'bold', color: '#f1f5f9', marginBottom: 6 }}>{label}</p>
-      {payload.map(p => (
-        <div key={p.dataKey} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginBottom: 2 }}>
-          <span style={{ color: p.color }}>{p.name === 'forecast' ? 'Scenario' : 'Baseline'}</span>
-          <span style={{ color: '#fff', fontFamily: 'monospace' }}>{p.value?.toFixed(2)}M pax</span>
-        </div>
-      ))}
+      {payload.map(p => {
+        const label = p.name === 'forecast' ? 'Scenario' : p.name === 'baseline' ? 'Baseline' : 'Historical';
+        return (
+          <div key={p.dataKey} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginBottom: 2 }}>
+            <span style={{ color: p.color }}>{label}</span>
+            <span style={{ color: '#fff', fontFamily: 'monospace' }}>{p.value?.toFixed(2)}M pax</span>
+          </div>
+        );
+      })}
     </div>
   );
 };
@@ -56,11 +69,28 @@ export default function App() {
   const forecast = useMemo(() => generateForecast(params, FORECAST_YEARS), [params]);
   const baseline = useMemo(() => generateBaseline(FORECAST_YEARS), []);
 
-  const chartData = forecast.map((f, i) => ({
-    year: f.year,
-    forecast: f.passengersM,
-    baseline: baseline[i].passengersM,
-  }));
+  // Merge historical actuals + forecast into a single chart series
+  const chartData = [
+    ...HISTORICAL_DATA.map(h => ({
+      year: h.year,
+      historical: h.passengersM,
+      forecast: null,
+      baseline: null,
+    })),
+    // 2024 is shared — connects historical to forecast
+    {
+      year: 2024,
+      historical: forecast[0].passengersM,
+      forecast: forecast[0].passengersM,
+      baseline: baseline[0].passengersM,
+    },
+    ...forecast.slice(1).map((f, i) => ({
+      year: f.year,
+      historical: null,
+      forecast: f.passengersM,
+      baseline: baseline[i + 1].passengersM,
+    })),
+  ];
 
   const lastForecast = forecast[forecast.length - 1];
   const lastBaseline = baseline[baseline.length - 1];
@@ -89,7 +119,7 @@ export default function App() {
             <span style={{ fontSize: 24 }}>✈️</span>
             <div>
               <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#f8fafc' }}>Airport Passenger Forecaster</h1>
-              <p style={{ margin: 0, fontSize: 12, color: '#475569' }}>Parametric demand model · Base: 12.5M pax (2024) · Horizon: 2031</p>
+              <p style={{ margin: 0, fontSize: 12, color: '#475569' }}>Parametric demand model · Historical: 2018–2024 · Forecast horizon: 2031</p>
             </div>
           </div>
           {hasChanges && (
@@ -222,10 +252,10 @@ export default function App() {
           {/* Area chart */}
           <div style={{ background: 'rgba(15,23,42,0.6)', border: '1px solid #1e293b', borderRadius: 16, padding: '20px 20px 12px' }}>
             <div style={{ marginBottom: 12 }}>
-              <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#f8fafc' }}>Passenger Forecast 2024–2031</h2>
-              <p style={{ margin: '2px 0 0', fontSize: 12, color: '#475569' }}>Million passengers per year — scenario vs baseline</p>
+              <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#f8fafc' }}>Passenger History &amp; Forecast 2018–2031</h2>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: '#475569' }}>Million passengers per year — actuals (2018–2024) and scenario vs baseline (2024–2031)</p>
             </div>
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gradForecast" x1="0" y1="0" x2="0" y2="1">
@@ -236,16 +266,25 @@ export default function App() {
                     <stop offset="5%" stopColor="#64748b" stopOpacity={0.2} />
                     <stop offset="95%" stopColor="#64748b" stopOpacity={0} />
                   </linearGradient>
+                  <linearGradient id="gradHistorical" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                  </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                 <XAxis dataKey="year" tick={{ fill: '#475569', fontSize: 12 }} />
                 <YAxis tick={{ fill: '#475569', fontSize: 12 }} tickFormatter={v => `${v}M`} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend
-                  formatter={(val) => <span style={{ color: '#94a3b8', fontSize: 12 }}>{val === 'forecast' ? 'Scenario' : 'Baseline'}</span>}
+                  formatter={(val) => <span style={{ color: '#94a3b8', fontSize: 12 }}>
+                    {val === 'forecast' ? 'Scenario' : val === 'baseline' ? 'Baseline' : 'Historical'}
+                  </span>}
                 />
-                <Area type="monotone" dataKey="baseline" stroke="#475569" strokeWidth={1.5} strokeDasharray="5 3" fill="url(#gradBaseline)" name="baseline" />
-                <Area type="monotone" dataKey="forecast" stroke="#3b82f6" strokeWidth={2.5} fill="url(#gradForecast)" name="forecast" />
+                <ReferenceLine x={2024} stroke="#334155" strokeDasharray="4 2"
+                  label={{ value: '◀ Actual  Forecast ▶', position: 'top', fill: '#475569', fontSize: 10 }} />
+                <Area type="monotone" dataKey="historical" stroke="#f59e0b" strokeWidth={2} fill="url(#gradHistorical)" name="historical" connectNulls={false} />
+                <Area type="monotone" dataKey="baseline" stroke="#475569" strokeWidth={1.5} strokeDasharray="5 3" fill="url(#gradBaseline)" name="baseline" connectNulls={false} />
+                <Area type="monotone" dataKey="forecast" stroke="#3b82f6" strokeWidth={2.5} fill="url(#gradForecast)" name="forecast" connectNulls={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -277,7 +316,7 @@ export default function App() {
 
           {/* Year-by-year table */}
           <div style={{ background: 'rgba(15,23,42,0.6)', border: '1px solid #1e293b', borderRadius: 16, padding: 20 }}>
-            <h2 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: '#f8fafc' }}>Year-by-Year Forecast</h2>
+            <h2 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: '#f8fafc' }}>Year-by-Year Data</h2>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                 <thead>
@@ -290,10 +329,37 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
+                  {/* Historical rows */}
+                  {HISTORICAL_DATA.map((h, i) => {
+                    const prevM = i === 0 ? null : HISTORICAL_DATA[i - 1].passengersM;
+                    const yoy = prevM ? ((h.passengersM / prevM - 1) * 100) : null;
+                    return (
+                      <tr key={h.year} style={{ borderBottom: '1px solid rgba(30,41,59,0.6)', opacity: 0.75 }}>
+                        <td style={{ padding: '8px 16px 8px 0', color: '#94a3b8', fontWeight: 500 }}>
+                          {h.year}{' '}
+                          <span style={{ fontSize: 10, color: '#f59e0b', background: 'rgba(245,158,11,0.1)', borderRadius: 4, padding: '1px 5px' }}>Actual</span>
+                        </td>
+                        <td style={{ textAlign: 'right', padding: '8px 12px', color: '#f59e0b', fontFamily: 'monospace' }}>{h.passengersM}M</td>
+                        <td style={{ textAlign: 'right', padding: '8px 12px', color: '#334155', fontFamily: 'monospace' }}>—</td>
+                        <td style={{ textAlign: 'right', padding: '8px 12px', color: '#334155', fontFamily: 'monospace' }}>—</td>
+                        <td style={{ textAlign: 'right', padding: '8px 0 8px 12px', fontFamily: 'monospace', color: yoy === null ? '#475569' : yoy > 0 ? '#34d399' : '#f87171' }}>
+                          {yoy === null ? '—' : `${yoy > 0 ? '+' : ''}${yoy.toFixed(1)}%`}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {/* Divider row */}
+                  <tr>
+                    <td colSpan={5} style={{ padding: '4px 0', borderBottom: '1px dashed #334155' }}>
+                      <span style={{ fontSize: 10, color: '#475569', paddingLeft: 0 }}>▼ Forecast period</span>
+                    </td>
+                  </tr>
+                  {/* Forecast rows */}
                   {forecast.map((f, i) => {
                     const b = baseline[i];
                     const delta = parseFloat((f.passengersM - b.passengersM).toFixed(2));
-                    const yoy = i === 0 ? null : ((f.passengers / forecast[i - 1].passengers - 1) * 100);
+                    const prevPax = i === 0 ? HISTORICAL_DATA[HISTORICAL_DATA.length - 1].passengersM * 1_000_000 : forecast[i - 1].passengers;
+                    const yoy = ((f.passengers / prevPax - 1) * 100);
                     return (
                       <tr key={f.year} style={{ borderBottom: '1px solid rgba(30,41,59,0.6)' }}>
                         <td style={{ padding: '8px 16px 8px 0', color: '#cbd5e1', fontWeight: 500 }}>
@@ -304,8 +370,8 @@ export default function App() {
                         <td style={{ textAlign: 'right', padding: '8px 12px', fontFamily: 'monospace', color: delta > 0 ? '#34d399' : delta < 0 ? '#f87171' : '#475569' }}>
                           {delta === 0 ? '—' : `${delta > 0 ? '+' : ''}${delta}M`}
                         </td>
-                        <td style={{ textAlign: 'right', padding: '8px 0 8px 12px', fontFamily: 'monospace', color: yoy === null ? '#475569' : yoy > 0 ? '#34d399' : '#f87171' }}>
-                          {yoy === null ? '—' : `${yoy > 0 ? '+' : ''}${yoy.toFixed(1)}%`}
+                        <td style={{ textAlign: 'right', padding: '8px 0 8px 12px', fontFamily: 'monospace', color: yoy > 0 ? '#34d399' : '#f87171' }}>
+                          {`${yoy > 0 ? '+' : ''}${yoy.toFixed(1)}%`}
                         </td>
                       </tr>
                     );
