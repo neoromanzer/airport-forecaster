@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, ReferenceLine
@@ -10,28 +10,34 @@ import SectionCard from './components/SectionCard';
 import MetricCard from './components/MetricCard';
 import './index.css';
 
-// Historical actuals (pre-2024) — representative data for a 12.5M pax airport
+// Color tokens
+const BG     = '#050b0e';
+const SURF   = '#07111a';
+const BORDER = '#0d2535';
+const CYAN   = '#00e5c8';
+const AMBER  = '#f5a623';
+const RED    = '#ef4444';
+const GREEN  = '#22c55e';
+const TEXT   = '#a8ccc8';
+const MUTED  = '#2a5050';
+const DIM    = '#1a3535';
+
 const HISTORICAL_DATA = [
   { year: 2018, passengersM: 10.8 },
   { year: 2019, passengersM: 11.9 },
-  { year: 2020, passengersM: 4.5 },  // COVID-19 impact
-  { year: 2021, passengersM: 6.9 },  // partial recovery
-  { year: 2022, passengersM: 10.1 }, // strong rebound
-  { year: 2023, passengersM: 11.6 }, // near pre-COVID levels
+  { year: 2020, passengersM: 4.5 },
+  { year: 2021, passengersM: 6.9 },
+  { year: 2022, passengersM: 10.1 },
+  { year: 2023, passengersM: 11.6 },
 ];
 
 const DEFAULT_PARAMS = {
-  // Macro
   gdpGrowth: 2.0,
   tourismGrowth: 1.0,
   fuelPriceChange: 0,
-
-  // Airline
   mainAirlineCapacityChange: 0,
   newRoutesImpact: 0,
   lccEntryBoost: 0,
-
-  // Airport
   incentiveProgram: 0,
   terminalExpansion: 0,
   connectivityImprovement: 0,
@@ -43,53 +49,48 @@ function cagr(start, end, years) {
   return (((end / start) ** (1 / years)) - 1) * 100;
 }
 
-const CustomTooltip = ({ active, payload, label }) => {
+function riskBadge(yoy) {
+  if (Math.abs(yoy) < 4) return { label: 'LOW', color: CYAN, bg: CYAN+'12', border: CYAN+'50' };
+  if (Math.abs(yoy) < 9) return { label: 'MED', color: AMBER, bg: AMBER+'12', border: AMBER+'50' };
+  return { label: 'HIGH', color: RED, bg: RED+'12', border: RED+'50' };
+}
+
+const HudTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, padding: '10px 14px', fontSize: 12 }}>
-      <p style={{ fontWeight: 'bold', color: '#f1f5f9', marginBottom: 6 }}>{label}</p>
-      {payload.map(p => {
-        const label = p.name === 'forecast' ? 'Scenario' : p.name === 'baseline' ? 'Baseline' : 'Historical';
-        return (
-          <div key={p.dataKey} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginBottom: 2 }}>
-            <span style={{ color: p.color }}>{label}</span>
-            <span style={{ color: '#fff', fontFamily: 'monospace' }}>{p.value?.toFixed(2)}M pax</span>
-          </div>
-        );
-      })}
+    <div style={{ background: '#020c12', border: `1px solid ${CYAN}`, padding: '8px 12px', fontSize: 11, fontFamily: 'monospace', boxShadow: `0 0 12px ${CYAN}20` }}>
+      <p style={{ margin: '0 0 4px', color: CYAN, fontWeight: 700, letterSpacing: 2, fontSize: 10 }}>{label}</p>
+      {payload.map(p => (
+        <div key={p.dataKey} style={{ display: 'flex', justifyContent: 'space-between', gap: 20, marginBottom: 1 }}>
+          <span style={{ color: p.color, fontSize: 10 }}>{p.name === 'forecast' ? 'SCENARIO' : p.name === 'baseline' ? 'BASELINE' : 'ACTUAL'}</span>
+          <span style={{ color: '#fff' }}>{p.value?.toFixed(2)}M</span>
+        </div>
+      ))}
     </div>
   );
 };
 
 export default function App() {
   const [params, setParams] = useState(DEFAULT_PARAMS);
+  const [clock, setClock] = useState('');
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      setClock(now.toISOString().substr(11, 8));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const set = (key) => (val) => setParams(p => ({ ...p, [key]: val }));
 
   const forecast = useMemo(() => generateForecast(params, FORECAST_YEARS), [params]);
   const baseline = useMemo(() => generateBaseline(FORECAST_YEARS), []);
 
-  // Merge historical actuals + forecast into a single chart series
   const chartData = [
-    ...HISTORICAL_DATA.map(h => ({
-      year: h.year,
-      historical: h.passengersM,
-      forecast: null,
-      baseline: null,
-    })),
-    // 2024 is shared — connects historical to forecast
-    {
-      year: 2024,
-      historical: forecast[0].passengersM,
-      forecast: forecast[0].passengersM,
-      baseline: baseline[0].passengersM,
-    },
-    ...forecast.slice(1).map((f, i) => ({
-      year: f.year,
-      historical: null,
-      forecast: f.passengersM,
-      baseline: baseline[i + 1].passengersM,
-    })),
+    ...HISTORICAL_DATA.map(h => ({ year: h.year, historical: h.passengersM, forecast: null, baseline: null })),
+    { year: 2024, historical: forecast[0].passengersM, forecast: forecast[0].passengersM, baseline: baseline[0].passengersM },
+    ...forecast.slice(1).map((f, i) => ({ year: f.year, historical: null, forecast: f.passengersM, baseline: baseline[i + 1].passengersM })),
   ];
 
   const lastForecast = forecast[forecast.length - 1];
@@ -99,280 +100,253 @@ export default function App() {
   const forecastCAGR = cagr(first.passengers, lastForecast.passengers, FORECAST_YEARS);
   const baselineCAGR = cagr(first.passengers, lastBaseline.passengers, FORECAST_YEARS);
   const deltaPaxM = parseFloat((lastForecast.passengersM - lastBaseline.passengersM).toFixed(2));
-  const deltaCAGR = parseFloat((forecastCAGR - baselineCAGR).toFixed(2));
 
   const contribData = forecast.slice(1).map(f => ({
     year: f.year,
-    Macro: +((f.macroContrib - 1) * 100).toFixed(1),
-    Airline: +((f.airlineContrib - 1) * 100).toFixed(1),
-    Airport: +((f.airportContrib - 1) * 100).toFixed(1),
+    MACRO: +((f.macroContrib - 1) * 100).toFixed(1),
+    AIRLINE: +((f.airlineContrib - 1) * 100).toFixed(1),
+    AIRPORT: +((f.airportContrib - 1) * 100).toFixed(1),
   }));
 
   const hasChanges = JSON.stringify(params) !== JSON.stringify(DEFAULT_PARAMS);
+  const alertColor = deltaPaxM > 2 ? AMBER : deltaPaxM < -1 ? RED : CYAN;
+  const alertMsg = deltaPaxM > 2 ? `HIGH GROWTH SCENARIO · ${deltaPaxM}M PAX DELTA · CAGR ${forecastCAGR.toFixed(1)}%` : deltaPaxM < -1 ? `BELOW-BASELINE SCENARIO · ${deltaPaxM}M SHORTFALL` : `NOMINAL FORECAST · CAGR ${forecastCAGR.toFixed(1)}%`;
 
   return (
-    <div style={{ minHeight: '100vh', background: '#020817', color: '#e2e8f0' }}>
-      {/* Header */}
-      <div style={{ borderBottom: '1px solid #1e293b', background: 'rgba(15,23,42,0.9)', backdropFilter: 'blur(8px)', position: 'sticky', top: 0, zIndex: 10 }}>
-        <div style={{ maxWidth: 1400, margin: '0 auto', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 24 }}>✈️</span>
-            <div>
-              <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#f8fafc' }}>Airport Passenger Forecaster</h1>
-              <p style={{ margin: 0, fontSize: 12, color: '#475569' }}>Parametric demand model · Historical: 2018–2024 · Forecast horizon: 2031</p>
+    <div style={{ minHeight: '100vh', background: BG, color: TEXT, fontFamily: "'Space Mono','Consolas','Courier New',monospace" }}>
+      {/* ═══ HEADER ═══ */}
+      <div style={{ position: 'sticky', top: 0, zIndex: 20, background: SURF }}>
+
+        {/* Row 1: Title */}
+        <div style={{ borderBottom: `1px solid ${BORDER}`, padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: 3 }}>AIRPORT PASSENGER FORECASTER</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20, fontSize: 10 }}>
+            <span style={{ color: CYAN, display: 'flex', alignItems: 'center', gap: 5 }}>● MODEL ACTIVE</span>
+            <span style={{ color: GREEN, display: 'flex', alignItems: 'center', gap: 5 }}>● FORECAST READY</span>
+            <div style={{ borderLeft: `1px solid ${BORDER}`, paddingLeft: 12, textAlign: 'right' }}>
+              <div style={{ color: CYAN, fontSize: 12, fontWeight: 700, letterSpacing: 2 }}>{clock}</div>
+              <div style={{ color: MUTED, fontSize: 8 }}>UTC</div>
             </div>
           </div>
-          {hasChanges && (
-            <button
-              onClick={() => setParams(DEFAULT_PARAMS)}
-              style={{ fontSize: 12, padding: '6px 14px', borderRadius: 8, background: '#1e293b', border: '1px solid #334155', color: '#94a3b8', cursor: 'pointer' }}
-            >
-              Reset all
-            </button>
-          )}
+        </div>
+
+        {/* Row 2: Breadcrumb */}
+        <div style={{ borderBottom: `1px solid ${BORDER}`, padding: '6px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, letterSpacing: 1 }}>
+          <span style={{ color: TEXT }}>BASE / APF · AIRPORT PASSENGER FORECASTER · PARAMETRIC DEMAND MODEL</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ color: MUTED }}>BASE: 12.5M PAX (2024)</span>
+            {hasChanges && (
+              <button onClick={() => setParams(DEFAULT_PARAMS)} style={{ padding: '4px 10px', background: 'transparent', border: `1px solid ${CYAN}`, color: CYAN, cursor: 'pointer', fontSize: 9, letterSpacing: 2, fontFamily: 'inherit' }}>RESET</button>
+            )}
+          </div>
+        </div>
+
+        {/* Row 3: Pipeline */}
+        <div style={{ borderBottom: `1px solid ${BORDER}`, padding: '6px 20px', display: 'flex', justifyContent: 'space-between', fontSize: 9, background: '#040d12', letterSpacing: 1 }}>
+          <div style={{ display: 'flex', gap: 20 }}>
+            <span style={{ color: GREEN }}>● HISTORICAL DATA / 2018–2023 / LOADED</span>
+            <span style={{ color: MUTED }}>────</span>
+            <span style={{ color: CYAN }}>● FORECAST MODEL / PARAMETRIC / ACTIVE</span>
+            <span style={{ color: MUTED }}>────</span>
+            <span style={{ color: GREEN }}>● SCENARIO ANALYSIS / DEMAND MODEL / READY</span>
+          </div>
+          <span style={{ color: CYAN }}>{FORECAST_YEARS} YR FORECAST READY</span>
+        </div>
+
+        {/* Row 4: Stats bar */}
+        <div style={{ borderBottom: `1px solid ${BORDER}`, display: 'flex', background: BG }}>
+          {[
+            { label: 'AIRPORT', value: 'BASE' },
+            { label: 'ICAO', value: 'APF' },
+            { label: 'CITY', value: 'GENERIC' },
+            { label: 'SCENARIO 2031', value: `${lastForecast.passengersM}M`, color: '#fff' },
+            { label: 'BASELINE 2031', value: `${lastBaseline.passengersM}M`, color: TEXT },
+            { label: 'CAGR', value: `${forecastCAGR.toFixed(1)}%`, color: forecastCAGR >= 2 ? GREEN : TEXT },
+            { label: 'DELTA', value: `${deltaPaxM > 0 ? '+' : ''}${deltaPaxM}M`, color: deltaPaxM > 0 ? CYAN : RED },
+            { label: 'GROWTH ×', value: `×${(lastForecast.passengers / first.passengers).toFixed(2)}` },
+          ].map((s, i) => (
+            <div key={i} style={{ padding: '8px 14px', borderRight: `1px solid ${BORDER}`, minWidth: 90 }}>
+              <div style={{ fontSize: 8, color: MUTED, letterSpacing: 2, marginBottom: 3 }}>{s.label}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: s.color || TEXT }}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Row 5: Alert ticker */}
+        <div style={{ borderBottom: `1px solid ${alertColor}30`, background: `${alertColor}08`, padding: '5px 20px', display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden', height: 28 }}>
+          <span style={{ color: alertColor, fontSize: 9, fontWeight: 700, letterSpacing: 2, flexShrink: 0 }}>⚠ ALERT</span>
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <div style={{ color: alertColor, fontSize: 9, letterSpacing: 1.5, animation: 'ticker 30s linear infinite', whiteSpace: 'nowrap', display: 'inline-block' }}>
+              {alertMsg} · {alertMsg} · {alertMsg}
+            </div>
+          </div>
+        </div>
+
+        {/* Row 6: Tabs */}
+        <div style={{ borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center' }}>
+          {['PARAMETERS', 'FORECAST', 'HISTORY', 'MODEL'].map((tab, i) => (
+            <div key={tab} style={{ padding: '9px 16px', fontSize: 10, letterSpacing: 2, color: i === 0 ? CYAN : MUTED, borderBottom: i === 0 ? `2px solid ${CYAN}` : '2px solid transparent', cursor: 'default' }}>
+              {tab}
+            </div>
+          ))}
+          <div style={{ marginLeft: 'auto', fontSize: 9, color: MUTED, letterSpacing: 1, padding: '9px 20px', borderLeft: `1px solid ${BORDER}` }}>
+            <span style={{ color: CYAN }}>● LIVE FORECAST</span>
+          </div>
         </div>
       </div>
 
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px', display: 'grid', gridTemplateColumns: '360px 1fr', gap: 24 }}>
+      {/* ═══ MAIN CONTENT ═══ */}
+      <div style={{ maxWidth: 1500, margin: '0 auto', padding: '16px 20px', display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16 }}>
 
-        {/* ─── Left: Controls ─── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-          <SectionCard title="Macro Environment" subtitle="Drives underlying travel demand" icon="🌍" accentColor="blue">
-            <SliderControl
-              label="GDP Growth (annual %)"
-              value={params.gdpGrowth}
-              min={-3} max={6} step={0.1}
-              onChange={set('gdpGrowth')}
-              color="blue"
-              description="Real GDP growth. Elasticity 1.7× on air travel demand."
-            />
-            <SliderControl
-              label="Tourism Demand Growth (%)"
-              value={params.tourismGrowth}
-              min={-5} max={10} step={0.5}
-              onChange={set('tourismGrowth')}
-              color="blue"
-              description="Incremental demand beyond GDP — visa liberalisation, marketing, events."
-            />
-            <SliderControl
-              label="Fuel Price Change (%)"
-              value={params.fuelPriceChange}
-              min={-30} max={50} step={2.5}
-              onChange={set('fuelPriceChange')}
-              color="blue"
-              description="Affects airline seat supply. Elasticity −0.4× (capacity shrinks when fuel spikes)."
-            />
+        {/* LEFT: CONTROLS */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <SectionCard title="MACRO ENVIRONMENT" subtitle="DRIVES UNDERLYING TRAVEL DEMAND" accentColor="cyan">
+            <SliderControl label="GDP GROWTH (ANNUAL %)" value={params.gdpGrowth} min={-3} max={6} step={0.1} onChange={set('gdpGrowth')} color="cyan" description="Real GDP growth. Elasticity 1.7×." />
+            <SliderControl label="TOURISM DEMAND GROWTH (%)" value={params.tourismGrowth} min={-5} max={10} step={0.5} onChange={set('tourismGrowth')} color="cyan" description="Incremental demand beyond GDP." />
+            <SliderControl label="FUEL PRICE CHANGE (%)" value={params.fuelPriceChange} min={-30} max={50} step={2.5} onChange={set('fuelPriceChange')} color="cyan" description="Affects airline seat supply." />
           </SectionCard>
 
-          <SectionCard title="Main Airline" subtitle="Dominant carrier strategic decisions" icon="🛫" accentColor="green">
-            <SliderControl
-              label="Capacity Change (annual %)"
-              value={params.mainAirlineCapacityChange}
-              min={-15} max={20} step={0.5}
-              onChange={set('mainAirlineCapacityChange')}
-              color="green"
-              description="Seat capacity growth/decline rate of the dominant carrier year-on-year."
-            />
-            <SliderControl
-              label="New Routes Impact (%)"
-              value={params.newRoutesImpact}
-              min={0} max={25} step={1}
-              unit="%"
-              onChange={set('newRoutesImpact')}
-              color="green"
-              description="Incremental pax from new long-haul or international routes — ramps over 3 years."
-            />
-            <SliderControl
-              label="LCC / New Entrant Boost (%)"
-              value={params.lccEntryBoost}
-              min={0} max={20} step={1}
-              unit="%"
-              onChange={set('lccEntryBoost')}
-              color="green"
-              description="Low-cost carrier or new airline entry. Stimulates demand from year 2."
-            />
+          <SectionCard title="MAIN AIRLINE" subtitle="DOMINANT CARRIER STRATEGIC DECISIONS" accentColor="green">
+            <SliderControl label="CAPACITY CHANGE (ANNUAL %)" value={params.mainAirlineCapacityChange} min={-15} max={20} step={0.5} onChange={set('mainAirlineCapacityChange')} color="green" description="Seat capacity growth/decline rate." />
+            <SliderControl label="NEW ROUTES IMPACT (%)" value={params.newRoutesImpact} min={0} max={25} step={1} onChange={set('newRoutesImpact')} color="green" description="Incremental pax from new routes." />
+            <SliderControl label="LCC / NEW ENTRANT BOOST (%)" value={params.lccEntryBoost} min={0} max={20} step={1} onChange={set('lccEntryBoost')} color="green" description="Low-cost carrier entry impact." />
           </SectionCard>
 
-          <SectionCard title="Airport Levers" subtitle="What the airport can control directly" icon="🏗️" accentColor="purple">
-            <SliderControl
-              label="Airline Incentive Program (%)"
-              value={params.incentiveProgram}
-              min={0} max={15} step={0.5}
-              unit="%"
-              onChange={set('incentiveProgram')}
-              color="purple"
-              description="Fee discounts, marketing co-funding to attract airlines. Ramps over 2 years."
-            />
-            <SliderControl
-              label="Terminal Expansion (%)"
-              value={params.terminalExpansion}
-              min={0} max={40} step={1}
-              unit="%"
-              onChange={set('terminalExpansion')}
-              color="purple"
-              description="Capacity uplift from new terminal or additional gates. Available from year 2."
-            />
-            <SliderControl
-              label="Ground Connectivity (%)"
-              value={params.connectivityImprovement}
-              min={0} max={15} step={0.5}
-              unit="%"
-              onChange={set('connectivityImprovement')}
-              color="purple"
-              description="Rail, metro or road links expanding the catchment area. Effect from year 1."
-            />
+          <SectionCard title="AIRPORT LEVERS" subtitle="WHAT THE AIRPORT CAN CONTROL DIRECTLY" accentColor="purple">
+            <SliderControl label="AIRLINE INCENTIVE PROGRAM (%)" value={params.incentiveProgram} min={0} max={15} step={0.5} onChange={set('incentiveProgram')} color="purple" description="Fee discounts, marketing support." />
+            <SliderControl label="TERMINAL EXPANSION (%)" value={params.terminalExpansion} min={0} max={40} step={1} onChange={set('terminalExpansion')} color="purple" description="Capacity uplift from new terminal." />
+            <SliderControl label="GROUND CONNECTIVITY (%)" value={params.connectivityImprovement} min={0} max={15} step={0.5} onChange={set('connectivityImprovement')} color="purple" description="Rail, metro links expanding catchment." />
           </SectionCard>
 
-          {/* Model notes */}
-          <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 12, padding: 16, fontSize: 11, color: '#475569' }}>
-            <p style={{ fontWeight: 600, color: '#64748b', marginBottom: 6 }}>Model assumptions</p>
-            <ul style={{ margin: 0, paddingLeft: 16, lineHeight: '1.7' }}>
-              <li>GDP elasticity 1.7× (IATA average for mature markets)</li>
-              <li>Fuel elasticity −0.4× on airline seat supply</li>
-              <li>New routes ramp linearly over 3 years</li>
-              <li>LCC entry & incentive programs effective from year 2</li>
-              <li>Terminal expansion unlocks from year 2</li>
-              <li>Multipliers compound independently on 12.5M base</li>
-            </ul>
+          <div style={{ background: SURF, border: `1px solid ${BORDER}`, borderLeft: `3px solid ${MUTED}`, padding: 12, fontSize: 10 }}>
+            <p style={{ margin: '0 0 8px', fontWeight: 700, color: MUTED, letterSpacing: 2 }}>MODEL PARAMETERS</p>
+            <div style={{ color: MUTED, lineHeight: '2', fontSize: 9 }}>
+              <div>{'>'} GDP elasticity 1.7×</div>
+              <div>{'>'} Fuel elasticity −0.4×</div>
+              <div>{'>'} New routes ramp 3 years</div>
+              <div>{'>'} LCC entry effective year 2</div>
+              <div>{'>'} Multipliers compound on 12.5M</div>
+            </div>
           </div>
         </div>
 
-        {/* ─── Right: Charts & KPIs ─── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* RIGHT: CHARTS & TABLE */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-          {/* KPI row */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-            <MetricCard label={`Pax ${lastForecast.year}E`} value={`${lastForecast.passengersM}M`} delta={deltaPaxM} unit="M" sub="scenario passengers" />
-            <MetricCard label="CAGR 2024–2031" value={`${forecastCAGR.toFixed(1)}%`} delta={deltaCAGR} unit="%" sub="compound annual growth" />
-            <MetricCard label="vs Baseline 2031" value={`${deltaPaxM >= 0 ? '+' : ''}${deltaPaxM}M`} sub="incremental passengers" />
-            <MetricCard label="Growth multiple" value={`×${(lastForecast.passengers / first.passengers).toFixed(2)}`} sub={`baseline ×${(lastBaseline.passengers / first.passengers).toFixed(2)}`} />
+          {/* KPI Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+            <MetricCard label="PAX 2031E" value={`${lastForecast.passengersM}M`} delta={deltaPaxM} unit="M" sub="SCENARIO PASSENGERS" />
+            <MetricCard label="CAGR 2024–2031" value={`${forecastCAGR.toFixed(1)}%`} delta={forecastCAGR - baselineCAGR} unit="%" sub="COMPOUND ANNUAL GROWTH" />
+            <MetricCard label="VS BASELINE 2031" value={`${deltaPaxM >= 0 ? '+' : ''}${deltaPaxM}M`} sub="INCREMENTAL PAX" />
+            <MetricCard label="GROWTH MULTIPLE" value={`×${(lastForecast.passengers / first.passengers).toFixed(2)}`} sub={`BASELINE ×${(lastBaseline.passengers / first.passengers).toFixed(2)}`} />
           </div>
 
-          {/* Area chart */}
-          <div style={{ background: 'rgba(15,23,42,0.6)', border: '1px solid #1e293b', borderRadius: 16, padding: '20px 20px 12px' }}>
-            <div style={{ marginBottom: 12 }}>
-              <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#f8fafc' }}>Passenger History &amp; Forecast 2018–2031</h2>
-              <p style={{ margin: '2px 0 0', fontSize: 12, color: '#475569' }}>Million passengers per year — actuals (2018–2024) and scenario vs baseline (2024–2031)</p>
+          {/* Area Chart */}
+          <div style={{ background: SURF, border: `1px solid ${BORDER}`, padding: '14px 16px 10px' }}>
+            <div style={{ borderLeft: `3px solid ${CYAN}`, paddingLeft: 10, marginBottom: 12 }}>
+              <h2 style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#fff', letterSpacing: 2 }}>PASSENGER HISTORY & FORECAST 2018–2031</h2>
+              <p style={{ margin: '2px 0 0', fontSize: 9, color: MUTED, letterSpacing: 1 }}>ACTUALS (2018–2024) · SCENARIO VS BASELINE (2024–2031)</p>
             </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <ResponsiveContainer width="100%" height={240}>
+              <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="gradForecast" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                    <stop offset="5%" stopColor={CYAN} stopOpacity={0.2} />
+                    <stop offset="95%" stopColor={CYAN} stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="gradBaseline" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#64748b" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#64748b" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#334155" stopOpacity={0.15} />
+                    <stop offset="95%" stopColor="#334155" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="gradHistorical" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                    <stop offset="5%" stopColor={AMBER} stopOpacity={0.2} />
+                    <stop offset="95%" stopColor={AMBER} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="year" tick={{ fill: '#475569', fontSize: 12 }} />
-                <YAxis tick={{ fill: '#475569', fontSize: 12 }} tickFormatter={v => `${v}M`} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend
-                  formatter={(val) => <span style={{ color: '#94a3b8', fontSize: 12 }}>
-                    {val === 'forecast' ? 'Scenario' : val === 'baseline' ? 'Baseline' : 'Historical'}
-                  </span>}
-                />
-                <ReferenceLine x={2024} stroke="#334155" strokeDasharray="4 2"
-                  label={{ value: '◀ Actual  Forecast ▶', position: 'top', fill: '#475569', fontSize: 10 }} />
-                <Area type="monotone" dataKey="historical" stroke="#f59e0b" strokeWidth={2} fill="url(#gradHistorical)" name="historical" connectNulls={false} />
-                <Area type="monotone" dataKey="baseline" stroke="#475569" strokeWidth={1.5} strokeDasharray="5 3" fill="url(#gradBaseline)" name="baseline" connectNulls={false} />
-                <Area type="monotone" dataKey="forecast" stroke="#3b82f6" strokeWidth={2.5} fill="url(#gradForecast)" name="forecast" connectNulls={false} />
+                <CartesianGrid strokeDasharray="2 4" stroke={BORDER} />
+                <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 9 }} />
+                <YAxis tick={{ fill: MUTED, fontSize: 9 }} tickFormatter={v => `${v}M`} />
+                <Tooltip content={<HudTooltip />} />
+                <ReferenceLine x={2024} stroke={`${CYAN}40`} strokeDasharray="3 2" label={{ value: '◀ ACTUAL  FORECAST ▶', position: 'top', fill: MUTED, fontSize: 9 }} />
+                <Area type="monotone" dataKey="historical" stroke={AMBER} strokeWidth={1.5} fill="url(#gradHistorical)" name="historical" connectNulls={false} dot={false} />
+                <Area type="monotone" dataKey="baseline" stroke="#334155" strokeWidth={1} strokeDasharray="3 2" fill="url(#gradBaseline)" name="baseline" connectNulls={false} dot={false} />
+                <Area type="monotone" dataKey="forecast" stroke={CYAN} strokeWidth={2} fill="url(#gradForecast)" name="forecast" connectNulls={false} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Driver contribution chart */}
-          <div style={{ background: 'rgba(15,23,42,0.6)', border: '1px solid #1e293b', borderRadius: 16, padding: '20px 20px 12px' }}>
-            <div style={{ marginBottom: 12 }}>
-              <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#f8fafc' }}>Driver Contributions</h2>
-              <p style={{ margin: '2px 0 0', fontSize: 12, color: '#475569' }}>Cumulative % uplift above 2024 base, broken out by driver</p>
+          {/* Driver Chart */}
+          <div style={{ background: SURF, border: `1px solid ${BORDER}`, padding: '14px 16px 10px' }}>
+            <div style={{ borderLeft: `3px solid ${AMBER}`, paddingLeft: 10, marginBottom: 12 }}>
+              <h2 style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#fff', letterSpacing: 2 }}>DRIVER CONTRIBUTIONS</h2>
+              <p style={{ margin: '2px 0 0', fontSize: 9, color: MUTED, letterSpacing: 1 }}>CUMULATIVE % UPLIFT ABOVE 2024 BASE</p>
             </div>
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={contribData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="year" tick={{ fill: '#475569', fontSize: 12 }} />
-                <YAxis tick={{ fill: '#475569', fontSize: 12 }} tickFormatter={v => `${v > 0 ? '+' : ''}${v}%`} />
-                <Tooltip
-                  contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 12 }}
-                  labelStyle={{ color: '#f1f5f9', fontWeight: 'bold' }}
-                  formatter={(v, name) => [`${v > 0 ? '+' : ''}${v}%`, name]}
-                />
-                <ReferenceLine y={0} stroke="#334155" />
-                <Legend formatter={(val) => <span style={{ color: '#94a3b8', fontSize: 12 }}>{val}</span>} />
-                <Line type="monotone" dataKey="Macro" stroke="#60a5fa" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="Airline" stroke="#34d399" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="Airport" stroke="#a78bfa" strokeWidth={2} dot={false} />
+            <ResponsiveContainer width="100%" height={160}>
+              <LineChart data={contribData}>
+                <CartesianGrid strokeDasharray="2 4" stroke={BORDER} />
+                <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 9 }} />
+                <YAxis tick={{ fill: MUTED, fontSize: 9 }} tickFormatter={v => `${v}%`} />
+                <Tooltip content={<HudTooltip />} />
+                <ReferenceLine y={0} stroke={BORDER} />
+                <Line type="monotone" dataKey="MACRO" stroke={CYAN} strokeWidth={1.5} dot={false} />
+                <Line type="monotone" dataKey="AIRLINE" stroke={GREEN} strokeWidth={1.5} dot={false} />
+                <Line type="monotone" dataKey="AIRPORT" stroke="#a855f7" strokeWidth={1.5} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Year-by-year table */}
-          <div style={{ background: 'rgba(15,23,42,0.6)', border: '1px solid #1e293b', borderRadius: 16, padding: 20 }}>
-            <h2 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: '#f8fafc' }}>Year-by-Year Data</h2>
+          {/* Table */}
+          <div style={{ background: SURF, border: `1px solid ${BORDER}` }}>
+            <div style={{ borderBottom: `1px solid ${BORDER}`, borderLeft: `3px solid #a855f7`, paddingLeft: 10, padding: '10px 14px' }}>
+              <h2 style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#fff', letterSpacing: 2 }}>YEAR-BY-YEAR DATA</h2>
+              <p style={{ margin: '2px 0 0', fontSize: 9, color: MUTED, letterSpacing: 1 }}>HISTORICAL ACTUALS + FORECAST · SCENARIO VS BASELINE</p>
+            </div>
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+              <table style={{ width: '100%', fontSize: 10, borderCollapse: 'collapse', fontFamily: 'inherit' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #1e293b' }}>
-                    <th style={{ textAlign: 'left', padding: '8px 16px 8px 0', color: '#475569' }}>Year</th>
-                    <th style={{ textAlign: 'right', padding: '8px 12px', color: '#60a5fa' }}>Scenario</th>
-                    <th style={{ textAlign: 'right', padding: '8px 12px', color: '#475569' }}>Baseline</th>
-                    <th style={{ textAlign: 'right', padding: '8px 12px', color: '#475569' }}>Delta</th>
-                    <th style={{ textAlign: 'right', padding: '8px 0 8px 12px', color: '#475569' }}>YoY growth</th>
+                  <tr style={{ borderBottom: `1px solid ${BORDER}`, background: '#040d12' }}>
+                    {['#', 'YEAR', 'TYPE', 'SCENARIO', 'BASELINE', 'DELTA', 'YoY', 'RISK'].map(h => (
+                      <th key={h} style={{ textAlign: h === '#' || h === 'TYPE' || h === 'RISK' ? 'center' : 'right', padding: '6px 10px', color: MUTED, fontSize: 8, letterSpacing: 1.5, fontWeight: 400 }}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {/* Historical rows */}
                   {HISTORICAL_DATA.map((h, i) => {
                     const prevM = i === 0 ? null : HISTORICAL_DATA[i - 1].passengersM;
                     const yoy = prevM ? ((h.passengersM / prevM - 1) * 100) : null;
+                    const risk = yoy !== null ? riskBadge(yoy) : null;
                     return (
-                      <tr key={h.year} style={{ borderBottom: '1px solid rgba(30,41,59,0.6)', opacity: 0.75 }}>
-                        <td style={{ padding: '8px 16px 8px 0', color: '#94a3b8', fontWeight: 500 }}>
-                          {h.year}{' '}
-                          <span style={{ fontSize: 10, color: '#f59e0b', background: 'rgba(245,158,11,0.1)', borderRadius: 4, padding: '1px 5px' }}>Actual</span>
-                        </td>
-                        <td style={{ textAlign: 'right', padding: '8px 12px', color: '#f59e0b', fontFamily: 'monospace' }}>{h.passengersM}M</td>
-                        <td style={{ textAlign: 'right', padding: '8px 12px', color: '#334155', fontFamily: 'monospace' }}>—</td>
-                        <td style={{ textAlign: 'right', padding: '8px 12px', color: '#334155', fontFamily: 'monospace' }}>—</td>
-                        <td style={{ textAlign: 'right', padding: '8px 0 8px 12px', fontFamily: 'monospace', color: yoy === null ? '#475569' : yoy > 0 ? '#34d399' : '#f87171' }}>
-                          {yoy === null ? '—' : `${yoy > 0 ? '+' : ''}${yoy.toFixed(1)}%`}
-                        </td>
+                      <tr key={h.year} style={{ borderBottom: `1px solid ${BORDER}`, background: i % 2 === 0 ? 'transparent' : `${CYAN}04`, opacity: 0.8 }}>
+                        <td style={{ textAlign: 'center', padding: '5px 10px', color: MUTED, fontSize: 8 }}>{String(i + 1).padStart(2, '0')}</td>
+                        <td style={{ padding: '5px 10px', color: AMBER, fontWeight: 700 }}>{h.year}</td>
+                        <td style={{ textAlign: 'center', padding: '5px 10px' }}><span style={{ fontSize: 8, color: AMBER, border: `1px solid ${AMBER}50`, background: `${AMBER}10`, padding: '1px 5px', letterSpacing: 1 }}>ACTUAL</span></td>
+                        <td style={{ textAlign: 'right', padding: '5px 10px', color: AMBER }}>{h.passengersM}M</td>
+                        <td style={{ textAlign: 'right', padding: '5px 10px', color: MUTED }}>—</td>
+                        <td style={{ textAlign: 'right', padding: '5px 10px', color: MUTED }}>—</td>
+                        <td style={{ textAlign: 'right', padding: '5px 10px', color: yoy > 0 ? GREEN : RED }}>{yoy ? `${yoy > 0 ? '+' : ''}${yoy.toFixed(1)}%` : '—'}</td>
+                        <td style={{ textAlign: 'center', padding: '5px 10px' }}>—</td>
                       </tr>
                     );
                   })}
-                  {/* Divider row */}
-                  <tr>
-                    <td colSpan={5} style={{ padding: '4px 0', borderBottom: '1px dashed #334155' }}>
-                      <span style={{ fontSize: 10, color: '#475569', paddingLeft: 0 }}>▼ Forecast period</span>
-                    </td>
+                  <tr style={{ background: `${CYAN}08`, borderBottom: `1px dashed ${CYAN}40` }}>
+                    <td colSpan={8} style={{ padding: '4px 10px', fontSize: 8, color: CYAN, letterSpacing: 2 }}>▼ FORECAST PERIOD</td>
                   </tr>
-                  {/* Forecast rows */}
                   {forecast.map((f, i) => {
                     const b = baseline[i];
                     const delta = parseFloat((f.passengersM - b.passengersM).toFixed(2));
                     const prevPax = i === 0 ? HISTORICAL_DATA[HISTORICAL_DATA.length - 1].passengersM * 1_000_000 : forecast[i - 1].passengers;
                     const yoy = ((f.passengers / prevPax - 1) * 100);
+                    const risk = riskBadge(yoy);
                     return (
-                      <tr key={f.year} style={{ borderBottom: '1px solid rgba(30,41,59,0.6)' }}>
-                        <td style={{ padding: '8px 16px 8px 0', color: '#cbd5e1', fontWeight: 500 }}>
-                          {f.year}{i === 0 ? ' (base)' : 'E'}
-                        </td>
-                        <td style={{ textAlign: 'right', padding: '8px 12px', color: '#fff', fontFamily: 'monospace' }}>{f.passengersM}M</td>
-                        <td style={{ textAlign: 'right', padding: '8px 12px', color: '#64748b', fontFamily: 'monospace' }}>{b.passengersM}M</td>
-                        <td style={{ textAlign: 'right', padding: '8px 12px', fontFamily: 'monospace', color: delta > 0 ? '#34d399' : delta < 0 ? '#f87171' : '#475569' }}>
-                          {delta === 0 ? '—' : `${delta > 0 ? '+' : ''}${delta}M`}
-                        </td>
-                        <td style={{ textAlign: 'right', padding: '8px 0 8px 12px', fontFamily: 'monospace', color: yoy > 0 ? '#34d399' : '#f87171' }}>
-                          {`${yoy > 0 ? '+' : ''}${yoy.toFixed(1)}%`}
-                        </td>
+                      <tr key={f.year} style={{ borderBottom: `1px solid ${BORDER}`, background: i % 2 === 0 ? 'transparent' : `${CYAN}04` }}>
+                        <td style={{ textAlign: 'center', padding: '5px 10px', color: MUTED, fontSize: 8 }}>{String(HISTORICAL_DATA.length + 1 + i).padStart(2, '0')}</td>
+                        <td style={{ padding: '5px 10px', color: CYAN, fontWeight: 700 }}>{f.year}{i === 0 ? '' : 'E'}</td>
+                        <td style={{ textAlign: 'center', padding: '5px 10px' }}><span style={{ fontSize: 8, color: CYAN, border: `1px solid ${CYAN}50`, background: `${CYAN}10`, padding: '1px 5px', letterSpacing: 1 }}>{i === 0 ? 'BASE' : 'FCST'}</span></td>
+                        <td style={{ textAlign: 'right', padding: '5px 10px', color: '#fff', fontWeight: 700 }}>{f.passengersM}M</td>
+                        <td style={{ textAlign: 'right', padding: '5px 10px', color: MUTED }}>{b.passengersM}M</td>
+                        <td style={{ textAlign: 'right', padding: '5px 10px', color: delta > 0 ? CYAN : delta < 0 ? RED : MUTED }}>{delta === 0 ? '—' : `${delta > 0 ? '+' : ''}${delta}M`}</td>
+                        <td style={{ textAlign: 'right', padding: '5px 10px', color: yoy > 0 ? GREEN : RED }}>{`${yoy > 0 ? '+' : ''}${yoy.toFixed(1)}%`}</td>
+                        <td style={{ textAlign: 'center', padding: '5px 10px' }}><span style={{ fontSize: 8, color: risk.color, border: `1px solid ${risk.border}`, background: risk.bg, padding: '1px 5px', letterSpacing: 1 }}>{risk.label}</span></td>
                       </tr>
                     );
                   })}
