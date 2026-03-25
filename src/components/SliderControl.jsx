@@ -1,42 +1,40 @@
-export default function SliderControl({ label, value, min, max, step = 0.5, unit = '%', onChange, description, color = 'blue' }) {
-  const colorMap = {
-    blue: 'accent-blue-400',
-    green: 'accent-green-400',
-    purple: 'accent-purple-400',
-    orange: 'accent-orange-400',
-  };
+const ACCENT_MAP = {
+  cyan:   '#00e5c8',
+  green:  '#22c55e',
+  purple: '#a855f7',
+  blue:   '#3b82f6',
+};
 
-  const textColorMap = {
-    blue: 'text-blue-400',
-    green: 'text-green-400',
-    purple: 'text-purple-400',
-    orange: 'text-orange-400',
-  };
+const MUTED = '#2a5050';
+const DIM   = '#1a3535';
 
-  const isPositive = value > 0;
-  const isNegative = value < 0;
+export default function SliderControl({ label, value, min, max, step = 0.5, unit = '%', onChange, description, color = 'cyan' }) {
+  const accent = ACCENT_MAP[color] ?? ACCENT_MAP.cyan;
+  const isPos  = value > 0;
+  const isNeg  = value < 0;
 
   return (
-    <div className="mb-4">
-      <div className="flex justify-between items-center mb-1">
-        <label className="text-sm font-medium text-slate-300">{label}</label>
-        <span className={`text-sm font-bold tabular-nums ${isPositive ? 'text-green-400' : isNegative ? 'text-red-400' : 'text-slate-400'}`}>
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+        <label style={{ fontSize: 9, color: MUTED, letterSpacing: 1.5 }}>{label}</label>
+        <span style={{
+          fontSize: 11, fontWeight: 700,
+          color: isPos ? accent : isNeg ? '#ef4444' : '#334155',
+          letterSpacing: 1, minWidth: 44, textAlign: 'right',
+        }}>
           {value > 0 ? '+' : ''}{value}{unit}
         </span>
       </div>
       {description && (
-        <p className="text-xs text-slate-500 mb-2">{description}</p>
+        <p style={{ fontSize: 9, color: DIM, margin: '0 0 6px', lineHeight: 1.6, letterSpacing: 0.5 }}>{description}</p>
       )}
       <input
         type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
+        min={min} max={max} step={step} value={value}
         onChange={e => onChange(parseFloat(e.target.value))}
-        className={`w-full h-1.5 rounded-lg cursor-pointer bg-slate-700 ${colorMap[color]}`}
+        style={{ width: '100%', accentColor: accent, cursor: 'pointer', height: 2 }}
       />
-      <div className="flex justify-between text-xs text-slate-600 mt-0.5">
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, color: DIM, marginTop: 2, letterSpacing: 1 }}>
         <span>{min}{unit}</span>
         <span>{max}{unit}</span>
       </div>

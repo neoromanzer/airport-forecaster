@@ -2,12 +2,62 @@
 
 body {
   margin: 0;
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
-  background: #0f172a;
-  color: #e2e8f0;
+  font-family: 'Space Mono', 'Consolas', 'Courier New', monospace;
+  background: #050b0e;
+  color: #a0c4bc;
 }
 
 #root {
   width: 100%;
   min-height: 100svh;
 }
+
+* { box-sizing: border-box; }
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #050b0e; }
+::-webkit-scrollbar-thumb { background: #0d2535; }
+::-webkit-scrollbar-thumb:hover { background: #00e5c8; }
+
+::selection { background: rgba(0,229,200,0.15); color: #00e5c8; }
+
+/* ── Range input ── */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  background: #0d2535;
+  outline: none;
+  cursor: pointer;
+  border-radius: 0;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 0;
+  background: var(--thumb, #00e5c8);
+  box-shadow: 0 0 6px var(--thumb, #00e5c8);
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 10px; height: 10px;
+  border-radius: 0; border: none;
+  background: var(--thumb, #00e5c8);
+  box-shadow: 0 0 6px var(--thumb, #00e5c8);
+  cursor: pointer;
+}
+
+/* ── Animations ── */
+@keyframes ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; box-shadow: 0 0 5px currentColor; }
+  50%       { opacity: 0.5; box-shadow: 0 0 10px currentColor; }
+}
+
+.live-dot { animation: pulse-dot 2s ease-in-out infinite; }

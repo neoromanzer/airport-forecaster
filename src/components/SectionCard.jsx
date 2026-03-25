@@ -1,37 +1,33 @@
-export default function SectionCard({ title, subtitle, icon, children, accentColor = 'blue' }) {
-  const borderMap = {
-    blue: 'border-blue-500/30',
-    green: 'border-green-500/30',
-    purple: 'border-purple-500/30',
-    orange: 'border-orange-500/30',
-  };
+const ACCENT_MAP = {
+  cyan:   '#00e5c8',
+  green:  '#22c55e',
+  purple: '#a855f7',
+  blue:   '#3b82f6',
+  orange: '#f59e0b',
+};
 
-  const bgMap = {
-    blue: 'bg-blue-500/10',
-    green: 'bg-green-500/10',
-    purple: 'bg-purple-500/10',
-    orange: 'bg-orange-500/10',
-  };
+const SURF   = '#07111a';
+const BORDER = '#0d2535';
+const MUTED  = '#2a5050';
+const MONO   = "'Space Mono','Consolas','Courier New',monospace";
 
-  const textMap = {
-    blue: 'text-blue-400',
-    green: 'text-green-400',
-    purple: 'text-purple-400',
-    orange: 'text-orange-400',
-  };
+export default function SectionCard({ title, subtitle, children, accentColor = 'cyan' }) {
+  const accent = ACCENT_MAP[accentColor] ?? ACCENT_MAP.cyan;
 
   return (
-    <div className={`rounded-xl border ${borderMap[accentColor]} bg-slate-900/60 p-5`}>
-      <div className="flex items-center gap-3 mb-4">
-        <div className={`w-8 h-8 rounded-lg ${bgMap[accentColor]} flex items-center justify-center text-base`}>
-          {icon}
-        </div>
-        <div>
-          <h3 className={`text-sm font-semibold ${textMap[accentColor]} uppercase tracking-wider`}>{title}</h3>
-          {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
-        </div>
+    <div style={{
+      background: SURF,
+      border: `1px solid ${BORDER}`,
+      borderLeft: `3px solid ${accent}`,
+      fontFamily: MONO,
+    }}>
+      <div style={{ borderBottom: `1px solid ${BORDER}`, padding: '9px 14px' }}>
+        <h3 style={{ margin: 0, fontSize: 10, fontWeight: 700, color: accent, letterSpacing: 2 }}>{title}</h3>
+        {subtitle && <p style={{ margin: '2px 0 0', fontSize: 9, color: MUTED, letterSpacing: 1 }}>{subtitle}</p>}
       </div>
-      {children}
+      <div style={{ padding: '14px 14px 2px' }}>
+        {children}
+      </div>
     </div>
   );
 }
