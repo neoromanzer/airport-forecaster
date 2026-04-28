@@ -10,6 +10,8 @@
   <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
   <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-geo@3/dist/d3-geo.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
 
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
@@ -122,6 +124,7 @@
   var _useMemo  = React.useMemo;
   var useState  = _useState;
   var useMemo   = _useMemo;
+  var useEffect = React.useEffect;
   var {
     AreaChart, Area, LineChart, Line,
     XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -131,31 +134,31 @@
   /* ── Airport data ──────────────────────────────────────── */
 
   var AIRPORTS = [
-    { iata:'LHR', name:'London Heathrow',        city:'London',       country:'UK',          basePax:79800000 },
-    { iata:'IST', name:'Istanbul Airport',        city:'Istanbul',     country:'Turkey',      basePax:76500000 },
-    { iata:'CDG', name:'Paris Charles de Gaulle', city:'Paris',        country:'France',      basePax:67400000 },
-    { iata:'FRA', name:'Frankfurt Airport',       city:'Frankfurt',    country:'Germany',     basePax:61900000 },
-    { iata:'AMS', name:'Amsterdam Schiphol',      city:'Amsterdam',    country:'Netherlands', basePax:61600000 },
-    { iata:'MAD', name:'Madrid Barajas',          city:'Madrid',       country:'Spain',       basePax:60200000 },
-    { iata:'BCN', name:'Barcelona El Prat',       city:'Barcelona',    country:'Spain',       basePax:52000000 },
-    { iata:'MUC', name:'Munich Airport',          city:'Munich',       country:'Germany',     basePax:47900000 },
-    { iata:'FCO', name:'Rome Fiumicino',          city:'Rome',         country:'Italy',       basePax:40200000 },
-    { iata:'DUB', name:'Dublin Airport',          city:'Dublin',       country:'Ireland',     basePax:32700000 },
-    { iata:'LIS', name:'Lisbon Airport',          city:'Lisbon',       country:'Portugal',    basePax:32100000 },
-    { iata:'ATH', name:'Athens Airport',          city:'Athens',       country:'Greece',      basePax:28900000 },
-    { iata:'CPH', name:'Copenhagen Airport',      city:'Copenhagen',   country:'Denmark',     basePax:30200000 },
-    { iata:'VIE', name:'Vienna Airport',          city:'Vienna',       country:'Austria',     basePax:29700000 },
-    { iata:'OSL', name:'Oslo Gardermoen',         city:'Oslo',         country:'Norway',      basePax:26500000 },
-    { iata:'ZRH', name:'Zurich Airport',          city:'Zurich',       country:'Switzerland', basePax:27000000 },
-    { iata:'WAW', name:'Warsaw Chopin',           city:'Warsaw',       country:'Poland',      basePax:22400000 },
-    { iata:'ARN', name:'Stockholm Arlanda',       city:'Stockholm',    country:'Sweden',      basePax:21900000 },
-    { iata:'BRU', name:'Brussels Airport',        city:'Brussels',     country:'Belgium',     basePax:21400000 },
-    { iata:'HEL', name:'Helsinki Airport',        city:'Helsinki',     country:'Finland',     basePax:18900000 },
-    { iata:'PRG', name:'Prague Airport',          city:'Prague',       country:'Czechia',     basePax:16600000 },
-    { iata:'BUD', name:'Budapest Airport',        city:'Budapest',     country:'Hungary',     basePax:15500000 },
-    { iata:'OTP', name:'Bucharest Otopeni',       city:'Bucharest',    country:'Romania',     basePax:14200000 },
-    { iata:'SOF', name:'Sofia Airport',           city:'Sofia',        country:'Bulgaria',    basePax: 7900000 },
-    { iata:'LJU', name:'Ljubljana Airport',       city:'Ljubljana',    country:'Slovenia',    basePax: 1800000 }
+    { iata:'LHR', name:'London Heathrow',        city:'London',       country:'UK',          basePax:79800000, lat:51.477, lon: -0.461 },
+    { iata:'IST', name:'Istanbul Airport',        city:'Istanbul',     country:'Turkey',      basePax:76500000, lat:41.275, lon: 28.752 },
+    { iata:'CDG', name:'Paris Charles de Gaulle', city:'Paris',        country:'France',      basePax:67400000, lat:49.009, lon:  2.548 },
+    { iata:'FRA', name:'Frankfurt Airport',       city:'Frankfurt',    country:'Germany',     basePax:61900000, lat:50.037, lon:  8.562 },
+    { iata:'AMS', name:'Amsterdam Schiphol',      city:'Amsterdam',    country:'Netherlands', basePax:61600000, lat:52.308, lon:  4.764 },
+    { iata:'MAD', name:'Madrid Barajas',          city:'Madrid',       country:'Spain',       basePax:60200000, lat:40.472, lon: -3.561 },
+    { iata:'BCN', name:'Barcelona El Prat',       city:'Barcelona',    country:'Spain',       basePax:52000000, lat:41.297, lon:  2.078 },
+    { iata:'MUC', name:'Munich Airport',          city:'Munich',       country:'Germany',     basePax:47900000, lat:48.354, lon: 11.786 },
+    { iata:'FCO', name:'Rome Fiumicino',          city:'Rome',         country:'Italy',       basePax:40200000, lat:41.800, lon: 12.239 },
+    { iata:'DUB', name:'Dublin Airport',          city:'Dublin',       country:'Ireland',     basePax:32700000, lat:53.421, lon: -6.270 },
+    { iata:'LIS', name:'Lisbon Airport',          city:'Lisbon',       country:'Portugal',    basePax:32100000, lat:38.774, lon: -9.135 },
+    { iata:'ATH', name:'Athens Airport',          city:'Athens',       country:'Greece',      basePax:28900000, lat:37.936, lon: 23.944 },
+    { iata:'CPH', name:'Copenhagen Airport',      city:'Copenhagen',   country:'Denmark',     basePax:30200000, lat:55.618, lon: 12.656 },
+    { iata:'VIE', name:'Vienna Airport',          city:'Vienna',       country:'Austria',     basePax:29700000, lat:48.110, lon: 16.569 },
+    { iata:'OSL', name:'Oslo Gardermoen',         city:'Oslo',         country:'Norway',      basePax:26500000, lat:60.197, lon: 11.100 },
+    { iata:'ZRH', name:'Zurich Airport',          city:'Zurich',       country:'Switzerland', basePax:27000000, lat:47.458, lon:  8.548 },
+    { iata:'WAW', name:'Warsaw Chopin',           city:'Warsaw',       country:'Poland',      basePax:22400000, lat:52.165, lon: 20.967 },
+    { iata:'ARN', name:'Stockholm Arlanda',       city:'Stockholm',    country:'Sweden',      basePax:21900000, lat:59.652, lon: 17.919 },
+    { iata:'BRU', name:'Brussels Airport',        city:'Brussels',     country:'Belgium',     basePax:21400000, lat:50.901, lon:  4.484 },
+    { iata:'HEL', name:'Helsinki Airport',        city:'Helsinki',     country:'Finland',     basePax:18900000, lat:60.317, lon: 24.963 },
+    { iata:'PRG', name:'Prague Airport',          city:'Prague',       country:'Czechia',     basePax:16600000, lat:50.100, lon: 14.260 },
+    { iata:'BUD', name:'Budapest Airport',        city:'Budapest',     country:'Hungary',     basePax:15500000, lat:47.437, lon: 19.261 },
+    { iata:'OTP', name:'Bucharest Otopeni',       city:'Bucharest',    country:'Romania',     basePax:14200000, lat:44.572, lon: 26.102 },
+    { iata:'SOF', name:'Sofia Airport',           city:'Sofia',        country:'Bulgaria',    basePax: 7900000, lat:42.695, lon: 23.411 },
+    { iata:'LJU', name:'Ljubljana Airport',       city:'Ljubljana',    country:'Slovenia',    basePax: 1800000, lat:46.224, lon: 14.458 }
   ];
 
   /* ── Model ─────────────────────────────────────────────── */
@@ -345,6 +348,118 @@
     );
   }
 
+  function RouteMap(props) {
+    var selected = props.selected;
+    var ws = useState(null);
+    var world = ws[0], setWorld = ws[1];
+
+    useEffect(function() {
+      fetch('https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json')
+        .then(function(r) { return r.json(); })
+        .then(function(d) { setWorld(d); })
+        .catch(function() {});
+    }, []);
+
+    var W = 960, H = 440;
+
+    var geoProj = useMemo(function() {
+      return d3.geoNaturalEarth1().scale(153).translate([W / 2, H / 2]);
+    }, []);
+
+    var gPath = useMemo(function() {
+      return d3.geoPath().projection(geoProj);
+    }, [geoProj]);
+
+    var graticule = useMemo(function() { return d3.geoGraticule()(); }, []);
+
+    function px(lon, lat) { return geoProj([lon, lat]); }
+
+    function routeArc(a, b) {
+      var p1 = px(a.lon, a.lat);
+      var p2 = px(b.lon, b.lat);
+      if (!p1 || !p2) return '';
+      var cx = (p1[0] + p2[0]) / 2 - (p2[1] - p1[1]) * 0.25;
+      var cy = (p1[1] + p2[1]) / 2 + (p2[0] - p1[0]) * 0.25;
+      return 'M' + p1[0].toFixed(1) + ',' + p1[1].toFixed(1) +
+             ' Q' + cx.toFixed(1) + ',' + cy.toFixed(1) +
+             ' ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1);
+    }
+
+    var sp = px(selected.lon, selected.lat);
+    var others = AIRPORTS.filter(function(a) { return a.iata !== selected.iata; });
+    var countries = world ? topojson.feature(world, world.objects.countries).features : [];
+    var borders   = world ? topojson.mesh(world, world.objects.countries, function(a, b) { return a !== b; }) : null;
+
+    return (
+      <div className="chart-panel" style={{padding:0, overflow:'hidden'}}>
+        <div style={{padding:'9px 16px', borderBottom:'1px solid #1e293b',
+                     display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+          <div style={{display:'flex', alignItems:'center', gap:10}}>
+            <span style={{color:'#00e5c8', fontSize:11, fontWeight:700,
+                          letterSpacing:2, fontFamily:'monospace'}}>
+              ROUTE MAP — {selected.iata}
+            </span>
+            <span style={{color:'#475569', fontSize:10, fontFamily:'monospace'}}>
+              {others.length} ROUTES
+            </span>
+          </div>
+          <div style={{display:'flex', gap:16, fontSize:10, fontFamily:'monospace', color:'#475569'}}>
+            <span><span style={{color:'#00e5c8'}}>●</span> {'>'}50M pax</span>
+            <span><span style={{color:'#fbbf24'}}>●</span> 25–50M</span>
+            <span><span style={{color:'#334155'}}>●</span> {'<'}25M</span>
+          </div>
+        </div>
+        <svg viewBox={'0 0 ' + W + ' ' + H} style={{width:'100%', display:'block'}}>
+          <rect width={W} height={H} fill="#020c14"/>
+          <path d={gPath({type:'Sphere'})} fill="#030f1e" stroke="#0a1f30" strokeWidth={0.5}/>
+          <path d={gPath(graticule)} fill="none" stroke="#061525" strokeWidth={0.3}/>
+          {countries.map(function(f, i) {
+            return <path key={i} d={gPath(f) || ''} fill="#081828" stroke="#0d2537" strokeWidth={0.4}/>;
+          })}
+          {borders && <path d={gPath(borders) || ''} fill="none" stroke="#0f2d45" strokeWidth={0.3}/>}
+          {others.map(function(a) {
+            var d = routeArc(selected, a);
+            if (!d) return null;
+            var big = a.basePax > 50000000;
+            var med = a.basePax > 25000000;
+            return (
+              <path key={'r-' + a.iata} d={d} fill="none"
+                stroke={big ? '#00e5c8' : med ? '#fbbf24' : '#334155'}
+                strokeWidth={big ? 1.2 : med ? 0.8 : 0.5}
+                opacity={big ? 0.65 : med ? 0.5 : 0.3}
+                strokeLinecap="round"/>
+            );
+          })}
+          {others.map(function(a) {
+            var pt = px(a.lon, a.lat);
+            if (!pt) return null;
+            var big = a.basePax > 50000000;
+            var med = a.basePax > 25000000;
+            var col = big ? '#00e5c8' : med ? '#fbbf24' : '#334155';
+            var r   = big ? 3.5 : med ? 2.5 : 1.5;
+            return (
+              <g key={'d-' + a.iata}
+                 transform={'translate(' + pt[0].toFixed(1) + ',' + pt[1].toFixed(1) + ')'}>
+                <circle r={r + 4} fill={col} opacity={0.1}/>
+                <circle r={r} fill={col} opacity={0.85}/>
+              </g>
+            );
+          })}
+          {sp && (
+            <g transform={'translate(' + sp[0].toFixed(1) + ',' + sp[1].toFixed(1) + ')'}>
+              <circle r={20} fill="none" stroke="#00e5c8" strokeWidth={0.5} opacity={0.15}/>
+              <circle r={12} fill="none" stroke="#00e5c8" strokeWidth={0.8} opacity={0.3}/>
+              <circle r={6}  fill="none" stroke="#00e5c8" strokeWidth={1.5} opacity={0.65}/>
+              <circle r={3}  fill="#00e5c8"/>
+              <text x={8} y={-7} fill="#00e5c8" fontSize={9} fontWeight="700"
+                    fontFamily="monospace">{selected.iata}</text>
+            </g>
+          )}
+        </svg>
+      </div>
+    );
+  }
+
   /* ── App ───────────────────────────────────────────────── */
 
   function App() {
@@ -462,6 +577,8 @@
               <Kpi label="vs Baseline 2031" value={(deltaPax >= 0 ? '+' : '') + deltaPax + 'M'} sub="incremental passengers" />
               <Kpi label="Growth multiple" value={'x' + (last.pax / first.pax).toFixed(2)} sub={'baseline x' + (lastB.pax / first.pax).toFixed(2)} />
             </div>
+
+            <RouteMap selected={airport}/>
 
             <div className="chart-panel">
               <div className="chart-title">Passenger Forecast 2024–2031 · {airport.iata}</div>
