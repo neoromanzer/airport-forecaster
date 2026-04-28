@@ -324,7 +324,7 @@ export default function App() {
                         <td style={{ textAlign: 'right', padding: '5px 10px', color: MUTED }}>—</td>
                         <td style={{ textAlign: 'right', padding: '5px 10px', color: MUTED }}>—</td>
                         <td style={{ textAlign: 'right', padding: '5px 10px', color: yoy > 0 ? GREEN : RED }}>{yoy ? `${yoy > 0 ? '+' : ''}${yoy.toFixed(1)}%` : '—'}</td>
-                        <td style={{ textAlign: 'center', padding: '5px 10px' }}>—</td>
+                        <td style={{ textAlign: 'center', padding: '5px 10px' }}>{risk ? <span style={{ fontSize: 8, color: risk.color, border: `1px solid ${risk.border}`, background: risk.bg, padding: '1px 5px', letterSpacing: 1 }}>{risk.label}</span> : '—'}</td>
                       </tr>
                     );
                   })}
