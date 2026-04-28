@@ -4,16 +4,15 @@ import tailwindcss from '@tailwindcss/vite'
 import { viteSingleFile } from 'vite-plugin-singlefile'
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), viteSingleFile()],
+  base: './',
+  plugins: [react(), tailwindcss(), viteSingleFile({ useRecommendedBuildConfig: false })],
   build: {
     target: 'es2015',
-    assetsInlineLimit: 100_000_000,
+    assetsInlineLimit: () => true,
+    chunkSizeWarningLimit: 100_000_000,
     cssCodeSplit: false,
     modulePreload: false,
-    rolldownOptions: {
-      output: {
-        inlineDynamicImports: true,
-      },
-    },
+    codeSplitting: false,
+    assetsDir: '',
   },
 })
