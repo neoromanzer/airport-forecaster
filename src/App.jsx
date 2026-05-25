@@ -1,26 +1,15 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, ReferenceLine
+  Tooltip, ResponsiveContainer, ReferenceLine
 } from 'recharts';
 
 import { generateForecast, generateBaseline } from './model/forecast';
 import SliderControl from './components/SliderControl';
 import SectionCard from './components/SectionCard';
 import MetricCard from './components/MetricCard';
+import { BG, SURF, BORDER, CYAN, AMBER, RED, GREEN, TEXT, MUTED, ACCENT_MAP, MONO } from './theme';
 import './index.css';
-
-// Color tokens
-const BG     = '#050b0e';
-const SURF   = '#07111a';
-const BORDER = '#0d2535';
-const CYAN   = '#00e5c8';
-const AMBER  = '#f5a623';
-const RED    = '#ef4444';
-const GREEN  = '#22c55e';
-const TEXT   = '#a8ccc8';
-const MUTED  = '#2a5050';
-const DIM    = '#1a3535';
 
 const HISTORICAL_DATA = [
   { year: 2018, passengersM: 10.8 },
@@ -70,67 +59,79 @@ const HudTooltip = ({ active, payload, label }) => {
   );
 };
 
+function Clock() {
+  const [time, setTime] = useState(() => new Date().toISOString().slice(11, 19));
+  useEffect(() => {
+    const id = setInterval(() => setTime(new Date().toISOString().slice(11, 19)), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div style={{ borderLeft: `1px solid ${BORDER}`, paddingLeft: 12, textAlign: 'right' }}>
+      <div style={{ color: CYAN, fontSize: 12, fontWeight: 700, letterSpacing: 2 }}>{time}</div>
+      <div style={{ color: MUTED, fontSize: 8 }}>UTC</div>
+    </div>
+  );
+}
+
 export default function App() {
   const [params, setParams] = useState(DEFAULT_PARAMS);
-  const [clock, setClock] = useState('');
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = new Date();
-      setClock(now.toISOString().substr(11, 8));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const set = (key) => (val) => setParams(p => ({ ...p, [key]: val }));
+  const set = useCallback((key) => (val) => setParams(p => ({ ...p, [key]: val })), []);
 
   const forecast = useMemo(() => generateForecast(params, FORECAST_YEARS), [params]);
   const baseline = useMemo(() => generateBaseline(FORECAST_YEARS), []);
 
-  const chartData = [
+  const chartData = useMemo(() => [
     ...HISTORICAL_DATA.map(h => ({ year: h.year, historical: h.passengersM, forecast: null, baseline: null })),
     { year: 2024, historical: forecast[0].passengersM, forecast: forecast[0].passengersM, baseline: baseline[0].passengersM },
     ...forecast.slice(1).map((f, i) => ({ year: f.year, historical: null, forecast: f.passengersM, baseline: baseline[i + 1].passengersM })),
-  ];
+  ], [forecast, baseline]);
 
-  const lastForecast = forecast[forecast.length - 1];
-  const lastBaseline = baseline[baseline.length - 1];
-  const first = forecast[0];
-
-  const forecastCAGR = cagr(first.passengers, lastForecast.passengers, FORECAST_YEARS);
-  const baselineCAGR = cagr(first.passengers, lastBaseline.passengers, FORECAST_YEARS);
-  const deltaPaxM = parseFloat((lastForecast.passengersM - lastBaseline.passengersM).toFixed(2));
-
-  const contribData = forecast.slice(1).map(f => ({
+  const contribData = useMemo(() => forecast.slice(1).map(f => ({
     year: f.year,
-    MACRO: +((f.macroContrib - 1) * 100).toFixed(1),
+    MACRO:   +((f.macroContrib   - 1) * 100).toFixed(1),
     AIRLINE: +((f.airlineContrib - 1) * 100).toFixed(1),
     AIRPORT: +((f.airportContrib - 1) * 100).toFixed(1),
-  }));
+  })), [forecast]);
 
-  const hasChanges = JSON.stringify(params) !== JSON.stringify(DEFAULT_PARAMS);
-  const alertColor = deltaPaxM > 2 ? AMBER : deltaPaxM < -1 ? RED : CYAN;
-  const alertMsg = deltaPaxM > 2 ? `HIGH GROWTH SCENARIO · ${deltaPaxM}M PAX DELTA · CAGR ${forecastCAGR.toFixed(1)}%` : deltaPaxM < -1 ? `BELOW-BASELINE SCENARIO · ${deltaPaxM}M SHORTFALL` : `NOMINAL FORECAST · CAGR ${forecastCAGR.toFixed(1)}%`;
+  const { lastForecast, lastBaseline, first, forecastCAGR, baselineCAGR, deltaPaxM, alertColor, alertMsg } = useMemo(() => {
+    const lastForecast = forecast[forecast.length - 1];
+    const lastBaseline = baseline[baseline.length - 1];
+    const first        = forecast[0];
+    const forecastCAGR = cagr(first.passengers, lastForecast.passengers, FORECAST_YEARS);
+    const baselineCAGR = cagr(first.passengers, lastBaseline.passengers, FORECAST_YEARS);
+    const deltaPaxM    = parseFloat((lastForecast.passengersM - lastBaseline.passengersM).toFixed(2));
+
+    let alertColor, alertMsg;
+    if (deltaPaxM > 2) {
+      alertColor = AMBER;
+      alertMsg   = `HIGH GROWTH SCENARIO · ${deltaPaxM}M PAX DELTA · CAGR ${forecastCAGR.toFixed(1)}%`;
+    } else if (deltaPaxM < -1) {
+      alertColor = RED;
+      alertMsg   = `BELOW-BASELINE SCENARIO · ${deltaPaxM}M SHORTFALL`;
+    } else {
+      alertColor = CYAN;
+      alertMsg   = `NOMINAL FORECAST · CAGR ${forecastCAGR.toFixed(1)}%`;
+    }
+
+    return { lastForecast, lastBaseline, first, forecastCAGR, baselineCAGR, deltaPaxM, alertColor, alertMsg };
+  }, [forecast, baseline]);
+
+  const hasChanges = Object.keys(DEFAULT_PARAMS).some(k => params[k] !== DEFAULT_PARAMS[k]);
 
   return (
-    <div style={{ minHeight: '100vh', background: BG, color: TEXT, fontFamily: "'Space Mono','Consolas','Courier New',monospace" }}>
-      {/* ═══ HEADER ═══ */}
+    <div style={{ minHeight: '100vh', background: BG, color: TEXT, fontFamily: MONO }}>
       <div style={{ position: 'sticky', top: 0, zIndex: 20, background: SURF }}>
 
-        {/* Row 1: Title */}
         <div style={{ borderBottom: `1px solid ${BORDER}`, padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h1 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: 3 }}>AIRPORT PASSENGER FORECASTER</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 20, fontSize: 10 }}>
             <span style={{ color: CYAN, display: 'flex', alignItems: 'center', gap: 5 }}>● MODEL ACTIVE</span>
             <span style={{ color: GREEN, display: 'flex', alignItems: 'center', gap: 5 }}>● FORECAST READY</span>
-            <div style={{ borderLeft: `1px solid ${BORDER}`, paddingLeft: 12, textAlign: 'right' }}>
-              <div style={{ color: CYAN, fontSize: 12, fontWeight: 700, letterSpacing: 2 }}>{clock}</div>
-              <div style={{ color: MUTED, fontSize: 8 }}>UTC</div>
-            </div>
+            <Clock />
           </div>
         </div>
 
-        {/* Row 2: Breadcrumb */}
         <div style={{ borderBottom: `1px solid ${BORDER}`, padding: '6px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, letterSpacing: 1 }}>
           <span style={{ color: TEXT }}>BASE / APF · AIRPORT PASSENGER FORECASTER · PARAMETRIC DEMAND MODEL</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -141,7 +142,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Row 3: Pipeline */}
         <div style={{ borderBottom: `1px solid ${BORDER}`, padding: '6px 20px', display: 'flex', justifyContent: 'space-between', fontSize: 9, background: '#040d12', letterSpacing: 1 }}>
           <div style={{ display: 'flex', gap: 20 }}>
             <span style={{ color: GREEN }}>● HISTORICAL DATA / 2018–2023 / LOADED</span>
@@ -153,26 +153,24 @@ export default function App() {
           <span style={{ color: CYAN }}>{FORECAST_YEARS} YR FORECAST READY</span>
         </div>
 
-        {/* Row 4: Stats bar */}
         <div style={{ borderBottom: `1px solid ${BORDER}`, display: 'flex', background: BG }}>
           {[
-            { label: 'AIRPORT', value: 'BASE' },
-            { label: 'ICAO', value: 'APF' },
-            { label: 'CITY', value: 'GENERIC' },
+            { label: 'AIRPORT',       value: 'BASE' },
+            { label: 'ICAO',          value: 'APF' },
+            { label: 'CITY',          value: 'GENERIC' },
             { label: 'SCENARIO 2031', value: `${lastForecast.passengersM}M`, color: '#fff' },
             { label: 'BASELINE 2031', value: `${lastBaseline.passengersM}M`, color: TEXT },
-            { label: 'CAGR', value: `${forecastCAGR.toFixed(1)}%`, color: forecastCAGR >= 2 ? GREEN : TEXT },
-            { label: 'DELTA', value: `${deltaPaxM > 0 ? '+' : ''}${deltaPaxM}M`, color: deltaPaxM > 0 ? CYAN : RED },
-            { label: 'GROWTH ×', value: `×${(lastForecast.passengers / first.passengers).toFixed(2)}` },
-          ].map((s, i) => (
-            <div key={i} style={{ padding: '8px 14px', borderRight: `1px solid ${BORDER}`, minWidth: 90 }}>
+            { label: 'CAGR',          value: `${forecastCAGR.toFixed(1)}%`, color: forecastCAGR >= 2 ? GREEN : TEXT },
+            { label: 'DELTA',         value: `${deltaPaxM > 0 ? '+' : ''}${deltaPaxM}M`, color: deltaPaxM > 0 ? CYAN : RED },
+            { label: 'GROWTH X',      value: `×${(lastForecast.passengers / first.passengers).toFixed(2)}` },
+          ].map(s => (
+            <div key={s.label} style={{ padding: '8px 14px', borderRight: `1px solid ${BORDER}`, minWidth: 90 }}>
               <div style={{ fontSize: 8, color: MUTED, letterSpacing: 2, marginBottom: 3 }}>{s.label}</div>
               <div style={{ fontSize: 12, fontWeight: 700, color: s.color || TEXT }}>{s.value}</div>
             </div>
           ))}
         </div>
 
-        {/* Row 5: Alert ticker */}
         <div style={{ borderBottom: `1px solid ${alertColor}30`, background: `${alertColor}08`, padding: '5px 20px', display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden', height: 28 }}>
           <span style={{ color: alertColor, fontSize: 9, fontWeight: 700, letterSpacing: 2, flexShrink: 0 }}>⚠ ALERT</span>
           <div style={{ flex: 1, overflow: 'hidden' }}>
@@ -182,7 +180,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Row 6: Tabs */}
         <div style={{ borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center' }}>
           {['PARAMETERS', 'FORECAST', 'HISTORY', 'MODEL'].map((tab, i) => (
             <div key={tab} style={{ padding: '9px 16px', fontSize: 10, letterSpacing: 2, color: i === 0 ? CYAN : MUTED, borderBottom: i === 0 ? `2px solid ${CYAN}` : '2px solid transparent', cursor: 'default' }}>
@@ -195,10 +192,8 @@ export default function App() {
         </div>
       </div>
 
-      {/* ═══ MAIN CONTENT ═══ */}
       <div style={{ maxWidth: 1500, margin: '0 auto', padding: '16px 20px', display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16 }}>
 
-        {/* LEFT: CONTROLS */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <SectionCard title="MACRO ENVIRONMENT" subtitle="DRIVES UNDERLYING TRAVEL DEMAND" accentColor="cyan">
             <SliderControl label="GDP GROWTH (ANNUAL %)" value={params.gdpGrowth} min={-3} max={6} step={0.1} onChange={set('gdpGrowth')} color="cyan" description="Real GDP growth. Elasticity 1.7×." />
@@ -230,10 +225,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* RIGHT: CHARTS & TABLE */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-          {/* KPI Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
             <MetricCard label="PAX 2031E" value={`${lastForecast.passengersM}M`} delta={deltaPaxM} unit="M" sub="SCENARIO PASSENGERS" />
             <MetricCard label="CAGR 2024–2031" value={`${forecastCAGR.toFixed(1)}%`} delta={forecastCAGR - baselineCAGR} unit="%" sub="COMPOUND ANNUAL GROWTH" />
@@ -241,7 +234,6 @@ export default function App() {
             <MetricCard label="GROWTH MULTIPLE" value={`×${(lastForecast.passengers / first.passengers).toFixed(2)}`} sub={`BASELINE ×${(lastBaseline.passengers / first.passengers).toFixed(2)}`} />
           </div>
 
-          {/* Area Chart */}
           <div style={{ background: SURF, border: `1px solid ${BORDER}`, padding: '14px 16px 10px' }}>
             <div style={{ borderLeft: `3px solid ${CYAN}`, paddingLeft: 10, marginBottom: 12 }}>
               <h2 style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#fff', letterSpacing: 2 }}>PASSENGER HISTORY & FORECAST 2018–2031</h2>
@@ -275,7 +267,6 @@ export default function App() {
             </ResponsiveContainer>
           </div>
 
-          {/* Driver Chart */}
           <div style={{ background: SURF, border: `1px solid ${BORDER}`, padding: '14px 16px 10px' }}>
             <div style={{ borderLeft: `3px solid ${AMBER}`, paddingLeft: 10, marginBottom: 12 }}>
               <h2 style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#fff', letterSpacing: 2 }}>DRIVER CONTRIBUTIONS</h2>
@@ -290,14 +281,13 @@ export default function App() {
                 <ReferenceLine y={0} stroke={BORDER} />
                 <Line type="monotone" dataKey="MACRO" stroke={CYAN} strokeWidth={1.5} dot={false} />
                 <Line type="monotone" dataKey="AIRLINE" stroke={GREEN} strokeWidth={1.5} dot={false} />
-                <Line type="monotone" dataKey="AIRPORT" stroke="#a855f7" strokeWidth={1.5} dot={false} />
+                <Line type="monotone" dataKey="AIRPORT" stroke={ACCENT_MAP.purple} strokeWidth={1.5} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Table */}
           <div style={{ background: SURF, border: `1px solid ${BORDER}` }}>
-            <div style={{ borderBottom: `1px solid ${BORDER}`, borderLeft: `3px solid #a855f7`, paddingLeft: 10, padding: '10px 14px' }}>
+            <div style={{ borderBottom: `1px solid ${BORDER}`, borderLeft: `3px solid ${ACCENT_MAP.purple}`, padding: '10px 14px' }}>
               <h2 style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#fff', letterSpacing: 2 }}>YEAR-BY-YEAR DATA</h2>
               <p style={{ margin: '2px 0 0', fontSize: 9, color: MUTED, letterSpacing: 1 }}>HISTORICAL ACTUALS + FORECAST · SCENARIO VS BASELINE</p>
             </div>
@@ -313,8 +303,8 @@ export default function App() {
                 <tbody>
                   {HISTORICAL_DATA.map((h, i) => {
                     const prevM = i === 0 ? null : HISTORICAL_DATA[i - 1].passengersM;
-                    const yoy = prevM ? ((h.passengersM / prevM - 1) * 100) : null;
-                    const risk = yoy !== null ? riskBadge(yoy) : null;
+                    const yoy   = prevM ? ((h.passengersM / prevM - 1) * 100) : null;
+                    const risk  = yoy !== null ? riskBadge(yoy) : null;
                     return (
                       <tr key={h.year} style={{ borderBottom: `1px solid ${BORDER}`, background: i % 2 === 0 ? 'transparent' : `${CYAN}04`, opacity: 0.8 }}>
                         <td style={{ textAlign: 'center', padding: '5px 10px', color: MUTED, fontSize: 8 }}>{String(i + 1).padStart(2, '0')}</td>
@@ -332,11 +322,11 @@ export default function App() {
                     <td colSpan={8} style={{ padding: '4px 10px', fontSize: 8, color: CYAN, letterSpacing: 2 }}>▼ FORECAST PERIOD</td>
                   </tr>
                   {forecast.map((f, i) => {
-                    const b = baseline[i];
-                    const delta = parseFloat((f.passengersM - b.passengersM).toFixed(2));
+                    const b      = baseline[i];
+                    const delta  = parseFloat((f.passengersM - b.passengersM).toFixed(2));
                     const prevPax = i === 0 ? HISTORICAL_DATA[HISTORICAL_DATA.length - 1].passengersM * 1_000_000 : forecast[i - 1].passengers;
-                    const yoy = ((f.passengers / prevPax - 1) * 100);
-                    const risk = riskBadge(yoy);
+                    const yoy    = ((f.passengers / prevPax - 1) * 100);
+                    const risk   = riskBadge(yoy);
                     return (
                       <tr key={f.year} style={{ borderBottom: `1px solid ${BORDER}`, background: i % 2 === 0 ? 'transparent' : `${CYAN}04` }}>
                         <td style={{ textAlign: 'center', padding: '5px 10px', color: MUTED, fontSize: 8 }}>{String(HISTORICAL_DATA.length + 1 + i).padStart(2, '0')}</td>

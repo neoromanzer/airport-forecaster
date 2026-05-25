@@ -1,10 +1,4 @@
-const CYAN   = '#00e5c8';
-const GREEN  = '#22c55e';
-const RED    = '#ef4444';
-const SURF   = '#07111a';
-const BORDER = '#0d2535';
-const MUTED  = '#2a5050';
-const MONO   = "'Space Mono','Consolas','Courier New',monospace";
+import { CYAN, GREEN, RED, SURF, BORDER, MUTED, MONO } from '../theme';
 
 export default function MetricCard({ label, value, delta, unit = '', sub }) {
   const isPos = delta > 0;

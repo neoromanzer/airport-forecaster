@@ -1,12 +1,4 @@
-const ACCENT_MAP = {
-  cyan:   '#00e5c8',
-  green:  '#22c55e',
-  purple: '#a855f7',
-  blue:   '#3b82f6',
-};
-
-const MUTED = '#2a5050';
-const DIM   = '#1a3535';
+import { ACCENT_MAP, MUTED, DIM } from '../theme';
 
 export default function SliderControl({ label, value, min, max, step = 0.5, unit = '%', onChange, description, color = 'cyan' }) {
   const accent = ACCENT_MAP[color] ?? ACCENT_MAP.cyan;

@@ -1,15 +1,4 @@
-const ACCENT_MAP = {
-  cyan:   '#00e5c8',
-  green:  '#22c55e',
-  purple: '#a855f7',
-  blue:   '#3b82f6',
-  orange: '#f59e0b',
-};
-
-const SURF   = '#07111a';
-const BORDER = '#0d2535';
-const MUTED  = '#2a5050';
-const MONO   = "'Space Mono','Consolas','Courier New',monospace";
+import { ACCENT_MAP, SURF, BORDER, MUTED, MONO } from '../theme';
 
 export default function SectionCard({ title, subtitle, children, accentColor = 'cyan' }) {
   const accent = ACCENT_MAP[accentColor] ?? ACCENT_MAP.cyan;
