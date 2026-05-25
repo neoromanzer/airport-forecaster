@@ -11,39 +11,59 @@ import MetricCard from './components/MetricCard';
 import { BG, SURF, BORDER, CYAN, AMBER, RED, GREEN, TEXT, MUTED, ACCENT_MAP, MONO } from './theme';
 import './index.css';
 
+// ─── Static data ──────────────────────────────────────────────────────────────
+
+// Reported actuals used to populate the left side of the history/forecast chart
+// and the historical rows in the year-by-year table.
+// 2020 dip = COVID collapse; 2022–2023 shows recovery arc.
 const HISTORICAL_DATA = [
   { year: 2018, passengersM: 10.8 },
   { year: 2019, passengersM: 11.9 },
-  { year: 2020, passengersM: 4.5 },
-  { year: 2021, passengersM: 6.9 },
+  { year: 2020, passengersM: 4.5  },
+  { year: 2021, passengersM: 6.9  },
   { year: 2022, passengersM: 10.1 },
   { year: 2023, passengersM: 11.6 },
 ];
 
+// Starting state for all sliders. Non-zero defaults for GDP and tourism
+// reflect a mild-growth assumption rather than a flat world.
+// Restored when the user hits RESET.
 const DEFAULT_PARAMS = {
-  gdpGrowth: 2.0,
-  tourismGrowth: 1.0,
-  fuelPriceChange: 0,
+  gdpGrowth:                 2.0,
+  tourismGrowth:             1.0,
+  fuelPriceChange:           0,
   mainAirlineCapacityChange: 0,
-  newRoutesImpact: 0,
-  lccEntryBoost: 0,
-  incentiveProgram: 0,
-  terminalExpansion: 0,
-  connectivityImprovement: 0,
+  newRoutesImpact:           0,
+  lccEntryBoost:             0,
+  incentiveProgram:          0,
+  terminalExpansion:         0,
+  connectivityImprovement:   0,
 };
 
-const FORECAST_YEARS = 7;
+const FORECAST_YEARS = 7; // 2024 → 2031
 
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// Compound Annual Growth Rate between two absolute passenger counts.
 function cagr(start, end, years) {
   return (((end / start) ** (1 / years)) - 1) * 100;
 }
 
+// Classifies year-over-year change into a coloured risk badge.
+// Thresholds are rule-of-thumb: <4% is within normal variance;
+// ≥9% signals a structural shift (major new hub route, crisis, capacity shock).
 function riskBadge(yoy) {
-  if (Math.abs(yoy) < 4) return { label: 'LOW', color: CYAN, bg: CYAN+'12', border: CYAN+'50' };
-  if (Math.abs(yoy) < 9) return { label: 'MED', color: AMBER, bg: AMBER+'12', border: AMBER+'50' };
-  return { label: 'HIGH', color: RED, bg: RED+'12', border: RED+'50' };
+  if (Math.abs(yoy) < 4) return { label: 'LOW',  color: CYAN,  bg: CYAN  + '12', border: CYAN  + '50' };
+  if (Math.abs(yoy) < 9) return { label: 'MED',  color: AMBER, bg: AMBER + '12', border: AMBER + '50' };
+  return                         { label: 'HIGH', color: RED,   bg: RED   + '12', border: RED   + '50' };
 }
 
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+// Custom tooltip rendered inside Recharts chart popovers.
+// Maps internal dataKey names ('forecast', 'baseline') to display labels.
 const HudTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
@@ -59,6 +79,8 @@ const HudTooltip = ({ active, payload, label }) => {
   );
 };
 
+// Clock is isolated into its own component so the 1-second setInterval
+// only triggers a re-render of this tiny node, not the entire dashboard.
 function Clock() {
   const [time, setTime] = useState(() => new Date().toISOString().slice(11, 19));
   useEffect(() => {
@@ -73,27 +95,41 @@ function Clock() {
   );
 }
 
+
+// ─── Main app ─────────────────────────────────────────────────────────────────
+
 export default function App() {
   const [params, setParams] = useState(DEFAULT_PARAMS);
 
+  // useCallback keeps the setter factory reference stable across renders,
+  // so slider onChange props don't change on every render and break memoization.
   const set = useCallback((key) => (val) => setParams(p => ({ ...p, [key]: val })), []);
 
+  // forecast recalculates whenever a slider changes.
+  // baseline is a constant (fixed inputs) so its dep array is empty.
   const forecast = useMemo(() => generateForecast(params, FORECAST_YEARS), [params]);
   const baseline = useMemo(() => generateBaseline(FORECAST_YEARS), []);
 
+  // Merge historical actuals and forecast into a single series for the area chart.
+  // 2024 is included in both halves (historical + forecast) so the two lines
+  // connect seamlessly at the actual/forecast boundary — no gap in the chart.
   const chartData = useMemo(() => [
     ...HISTORICAL_DATA.map(h => ({ year: h.year, historical: h.passengersM, forecast: null, baseline: null })),
     { year: 2024, historical: forecast[0].passengersM, forecast: forecast[0].passengersM, baseline: baseline[0].passengersM },
     ...forecast.slice(1).map((f, i) => ({ year: f.year, historical: null, forecast: f.passengersM, baseline: baseline[i + 1].passengersM })),
   ], [forecast, baseline]);
 
+  // Convert raw multiplier ratios to percentage uplift for the driver contributions chart.
+  // Sliced from index 1 because index 0 is the 2024 base year where all multipliers = 1.0.
   const contribData = useMemo(() => forecast.slice(1).map(f => ({
-    year: f.year,
+    year:    f.year,
     MACRO:   +((f.macroContrib   - 1) * 100).toFixed(1),
     AIRLINE: +((f.airlineContrib - 1) * 100).toFixed(1),
     AIRPORT: +((f.airportContrib - 1) * 100).toFixed(1),
   })), [forecast]);
 
+  // All derived display values grouped in one memo so they always stay in sync —
+  // recomputing them individually would risk stale combinations between renders.
   const { lastForecast, lastBaseline, first, forecastCAGR, baselineCAGR, deltaPaxM, alertColor, alertMsg } = useMemo(() => {
     const lastForecast = forecast[forecast.length - 1];
     const lastBaseline = baseline[baseline.length - 1];
@@ -117,51 +153,62 @@ export default function App() {
     return { lastForecast, lastBaseline, first, forecastCAGR, baselineCAGR, deltaPaxM, alertColor, alertMsg };
   }, [forecast, baseline]);
 
+  // Shallow key comparison — cheaper than JSON.stringify, sufficient for flat primitive objects.
   const hasChanges = Object.keys(DEFAULT_PARAMS).some(k => params[k] !== DEFAULT_PARAMS[k]);
+
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div style={{ minHeight: '100vh', background: BG, color: TEXT, fontFamily: MONO }}>
+
+      {/* ── Sticky header ─────────────────────────────────────────────────── */}
       <div style={{ position: 'sticky', top: 0, zIndex: 20, background: SURF }}>
 
+        {/* Title bar */}
         <div style={{ borderBottom: `1px solid ${BORDER}`, padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h1 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: 3 }}>AIRPORT PASSENGER FORECASTER</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 20, fontSize: 10 }}>
-            <span style={{ color: CYAN, display: 'flex', alignItems: 'center', gap: 5 }}>● MODEL ACTIVE</span>
+            <span style={{ color: CYAN,  display: 'flex', alignItems: 'center', gap: 5 }}>● MODEL ACTIVE</span>
             <span style={{ color: GREEN, display: 'flex', alignItems: 'center', gap: 5 }}>● FORECAST READY</span>
             <Clock />
           </div>
         </div>
 
+        {/* Breadcrumb + reset */}
         <div style={{ borderBottom: `1px solid ${BORDER}`, padding: '6px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, letterSpacing: 1 }}>
           <span style={{ color: TEXT }}>BASE / APF · AIRPORT PASSENGER FORECASTER · PARAMETRIC DEMAND MODEL</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ color: MUTED }}>BASE: 12.5M PAX (2024)</span>
+            {/* Only show RESET when the user has moved at least one slider */}
             {hasChanges && (
               <button onClick={() => setParams(DEFAULT_PARAMS)} style={{ padding: '4px 10px', background: 'transparent', border: `1px solid ${CYAN}`, color: CYAN, cursor: 'pointer', fontSize: 9, letterSpacing: 2, fontFamily: 'inherit' }}>RESET</button>
             )}
           </div>
         </div>
 
+        {/* Pipeline status bar */}
         <div style={{ borderBottom: `1px solid ${BORDER}`, padding: '6px 20px', display: 'flex', justifyContent: 'space-between', fontSize: 9, background: '#040d12', letterSpacing: 1 }}>
           <div style={{ display: 'flex', gap: 20 }}>
             <span style={{ color: GREEN }}>● HISTORICAL DATA / 2018–2023 / LOADED</span>
             <span style={{ color: MUTED }}>────</span>
-            <span style={{ color: CYAN }}>● FORECAST MODEL / PARAMETRIC / ACTIVE</span>
+            <span style={{ color: CYAN  }}>● FORECAST MODEL / PARAMETRIC / ACTIVE</span>
             <span style={{ color: MUTED }}>────</span>
             <span style={{ color: GREEN }}>● SCENARIO ANALYSIS / DEMAND MODEL / READY</span>
           </div>
           <span style={{ color: CYAN }}>{FORECAST_YEARS} YR FORECAST READY</span>
         </div>
 
+        {/* Live stats strip — key metrics at a glance */}
         <div style={{ borderBottom: `1px solid ${BORDER}`, display: 'flex', background: BG }}>
           {[
             { label: 'AIRPORT',       value: 'BASE' },
             { label: 'ICAO',          value: 'APF' },
             { label: 'CITY',          value: 'GENERIC' },
-            { label: 'SCENARIO 2031', value: `${lastForecast.passengersM}M`, color: '#fff' },
-            { label: 'BASELINE 2031', value: `${lastBaseline.passengersM}M`, color: TEXT },
-            { label: 'CAGR',          value: `${forecastCAGR.toFixed(1)}%`, color: forecastCAGR >= 2 ? GREEN : TEXT },
-            { label: 'DELTA',         value: `${deltaPaxM > 0 ? '+' : ''}${deltaPaxM}M`, color: deltaPaxM > 0 ? CYAN : RED },
+            { label: 'SCENARIO 2031', value: `${lastForecast.passengersM}M`,                          color: '#fff' },
+            { label: 'BASELINE 2031', value: `${lastBaseline.passengersM}M`,                          color: TEXT  },
+            { label: 'CAGR',          value: `${forecastCAGR.toFixed(1)}%`,                           color: forecastCAGR >= 2 ? GREEN : TEXT },
+            { label: 'DELTA',         value: `${deltaPaxM > 0 ? '+' : ''}${deltaPaxM}M`,              color: deltaPaxM > 0 ? CYAN : RED },
             { label: 'GROWTH X',      value: `×${(lastForecast.passengers / first.passengers).toFixed(2)}` },
           ].map(s => (
             <div key={s.label} style={{ padding: '8px 14px', borderRight: `1px solid ${BORDER}`, minWidth: 90 }}>
@@ -171,15 +218,18 @@ export default function App() {
           ))}
         </div>
 
+        {/* Scrolling alert ticker — colour and message reflect the current scenario */}
         <div style={{ borderBottom: `1px solid ${alertColor}30`, background: `${alertColor}08`, padding: '5px 20px', display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden', height: 28 }}>
           <span style={{ color: alertColor, fontSize: 9, fontWeight: 700, letterSpacing: 2, flexShrink: 0 }}>⚠ ALERT</span>
           <div style={{ flex: 1, overflow: 'hidden' }}>
+            {/* Message repeated 3× so the ticker appears seamless during the CSS scroll loop */}
             <div style={{ color: alertColor, fontSize: 9, letterSpacing: 1.5, animation: 'ticker 30s linear infinite', whiteSpace: 'nowrap', display: 'inline-block' }}>
               {alertMsg} · {alertMsg} · {alertMsg}
             </div>
           </div>
         </div>
 
+        {/* Tab bar — decorative; PARAMETERS is always active */}
         <div style={{ borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center' }}>
           {['PARAMETERS', 'FORECAST', 'HISTORY', 'MODEL'].map((tab, i) => (
             <div key={tab} style={{ padding: '9px 16px', fontSize: 10, letterSpacing: 2, color: i === 0 ? CYAN : MUTED, borderBottom: i === 0 ? `2px solid ${CYAN}` : '2px solid transparent', cursor: 'default' }}>
@@ -192,27 +242,34 @@ export default function App() {
         </div>
       </div>
 
+      {/* ── Main content: controls (left) + charts/table (right) ──────────── */}
       <div style={{ maxWidth: 1500, margin: '0 auto', padding: '16px 20px', display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16 }}>
 
+        {/* ── Left panel: sliders ─────────────────────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {/* Macro factors — external, the airport cannot control these */}
           <SectionCard title="MACRO ENVIRONMENT" subtitle="DRIVES UNDERLYING TRAVEL DEMAND" accentColor="cyan">
-            <SliderControl label="GDP GROWTH (ANNUAL %)" value={params.gdpGrowth} min={-3} max={6} step={0.1} onChange={set('gdpGrowth')} color="cyan" description="Real GDP growth. Elasticity 1.7×." />
-            <SliderControl label="TOURISM DEMAND GROWTH (%)" value={params.tourismGrowth} min={-5} max={10} step={0.5} onChange={set('tourismGrowth')} color="cyan" description="Incremental demand beyond GDP." />
-            <SliderControl label="FUEL PRICE CHANGE (%)" value={params.fuelPriceChange} min={-30} max={50} step={2.5} onChange={set('fuelPriceChange')} color="cyan" description="Affects airline seat supply." />
+            <SliderControl label="GDP GROWTH (ANNUAL %)"      value={params.gdpGrowth}       min={-3}  max={6}  step={0.1} onChange={set('gdpGrowth')}       color="cyan"   description="Real GDP growth. Elasticity 1.7×." />
+            <SliderControl label="TOURISM DEMAND GROWTH (%)"  value={params.tourismGrowth}    min={-5}  max={10} step={0.5} onChange={set('tourismGrowth')}    color="cyan"   description="Incremental demand beyond GDP." />
+            <SliderControl label="FUEL PRICE CHANGE (%)"      value={params.fuelPriceChange}  min={-30} max={50} step={2.5} onChange={set('fuelPriceChange')}  color="cyan"   description="Affects airline seat supply." />
           </SectionCard>
 
+          {/* Airline factors — decisions of the dominant carrier */}
           <SectionCard title="MAIN AIRLINE" subtitle="DOMINANT CARRIER STRATEGIC DECISIONS" accentColor="green">
-            <SliderControl label="CAPACITY CHANGE (ANNUAL %)" value={params.mainAirlineCapacityChange} min={-15} max={20} step={0.5} onChange={set('mainAirlineCapacityChange')} color="green" description="Seat capacity growth/decline rate." />
-            <SliderControl label="NEW ROUTES IMPACT (%)" value={params.newRoutesImpact} min={0} max={25} step={1} onChange={set('newRoutesImpact')} color="green" description="Incremental pax from new routes." />
-            <SliderControl label="LCC / NEW ENTRANT BOOST (%)" value={params.lccEntryBoost} min={0} max={20} step={1} onChange={set('lccEntryBoost')} color="green" description="Low-cost carrier entry impact." />
+            <SliderControl label="CAPACITY CHANGE (ANNUAL %)"  value={params.mainAirlineCapacityChange} min={-15} max={20} step={0.5} onChange={set('mainAirlineCapacityChange')} color="green" description="Seat capacity growth/decline rate." />
+            <SliderControl label="NEW ROUTES IMPACT (%)"       value={params.newRoutesImpact}           min={0}   max={25} step={1}   onChange={set('newRoutesImpact')}           color="green" description="Incremental pax from new routes." />
+            <SliderControl label="LCC / NEW ENTRANT BOOST (%)" value={params.lccEntryBoost}             min={0}   max={20} step={1}   onChange={set('lccEntryBoost')}             color="green" description="Low-cost carrier entry impact." />
           </SectionCard>
 
+          {/* Airport levers — what the airport can directly action */}
           <SectionCard title="AIRPORT LEVERS" subtitle="WHAT THE AIRPORT CAN CONTROL DIRECTLY" accentColor="purple">
-            <SliderControl label="AIRLINE INCENTIVE PROGRAM (%)" value={params.incentiveProgram} min={0} max={15} step={0.5} onChange={set('incentiveProgram')} color="purple" description="Fee discounts, marketing support." />
-            <SliderControl label="TERMINAL EXPANSION (%)" value={params.terminalExpansion} min={0} max={40} step={1} onChange={set('terminalExpansion')} color="purple" description="Capacity uplift from new terminal." />
-            <SliderControl label="GROUND CONNECTIVITY (%)" value={params.connectivityImprovement} min={0} max={15} step={0.5} onChange={set('connectivityImprovement')} color="purple" description="Rail, metro links expanding catchment." />
+            <SliderControl label="AIRLINE INCENTIVE PROGRAM (%)" value={params.incentiveProgram}       min={0} max={15} step={0.5} onChange={set('incentiveProgram')}       color="purple" description="Fee discounts, marketing support." />
+            <SliderControl label="TERMINAL EXPANSION (%)"        value={params.terminalExpansion}      min={0} max={40} step={1}   onChange={set('terminalExpansion')}      color="purple" description="Capacity uplift from new terminal." />
+            <SliderControl label="GROUND CONNECTIVITY (%)"       value={params.connectivityImprovement} min={0} max={15} step={0.5} onChange={set('connectivityImprovement')} color="purple" description="Rail, metro links expanding catchment." />
           </SectionCard>
 
+          {/* Quick reference for the elasticity constants baked into the model */}
           <div style={{ background: SURF, border: `1px solid ${BORDER}`, borderLeft: `3px solid ${MUTED}`, padding: 12, fontSize: 10 }}>
             <p style={{ margin: '0 0 8px', fontWeight: 700, color: MUTED, letterSpacing: 2 }}>MODEL PARAMETERS</p>
             <div style={{ color: MUTED, lineHeight: '2', fontSize: 9 }}>
@@ -225,15 +282,18 @@ export default function App() {
           </div>
         </div>
 
+        {/* ── Right panel: KPIs, charts, table ────────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
+          {/* KPI summary cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-            <MetricCard label="PAX 2031E" value={`${lastForecast.passengersM}M`} delta={deltaPaxM} unit="M" sub="SCENARIO PASSENGERS" />
-            <MetricCard label="CAGR 2024–2031" value={`${forecastCAGR.toFixed(1)}%`} delta={forecastCAGR - baselineCAGR} unit="%" sub="COMPOUND ANNUAL GROWTH" />
-            <MetricCard label="VS BASELINE 2031" value={`${deltaPaxM >= 0 ? '+' : ''}${deltaPaxM}M`} sub="INCREMENTAL PAX" />
-            <MetricCard label="GROWTH MULTIPLE" value={`×${(lastForecast.passengers / first.passengers).toFixed(2)}`} sub={`BASELINE ×${(lastBaseline.passengers / first.passengers).toFixed(2)}`} />
+            <MetricCard label="PAX 2031E"        value={`${lastForecast.passengersM}M`}                              delta={deltaPaxM}                                          unit="M" sub="SCENARIO PASSENGERS"    />
+            <MetricCard label="CAGR 2024–2031"   value={`${forecastCAGR.toFixed(1)}%`}                               delta={+(forecastCAGR - baselineCAGR).toFixed(2)}           unit="%" sub="COMPOUND ANNUAL GROWTH"  />
+            <MetricCard label="VS BASELINE 2031" value={`${deltaPaxM >= 0 ? '+' : ''}${deltaPaxM}M`}                                                                                    sub="INCREMENTAL PAX"          />
+            <MetricCard label="GROWTH MULTIPLE"  value={`×${(lastForecast.passengers / first.passengers).toFixed(2)}`}                                                                   sub={`BASELINE ×${(lastBaseline.passengers / first.passengers).toFixed(2)}`} />
           </div>
 
+          {/* History + forecast area chart */}
           <div style={{ background: SURF, border: `1px solid ${BORDER}`, padding: '14px 16px 10px' }}>
             <div style={{ borderLeft: `3px solid ${CYAN}`, paddingLeft: 10, marginBottom: 12 }}>
               <h2 style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#fff', letterSpacing: 2 }}>PASSENGER HISTORY & FORECAST 2018–2031</h2>
@@ -242,31 +302,34 @@ export default function App() {
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={chartData}>
                 <defs>
-                  <linearGradient id="gradForecast" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={CYAN} stopOpacity={0.2} />
-                    <stop offset="95%" stopColor={CYAN} stopOpacity={0} />
+                  <linearGradient id="gradForecast"   x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={CYAN}      stopOpacity={0.2} />
+                    <stop offset="95%" stopColor={CYAN}      stopOpacity={0}   />
                   </linearGradient>
-                  <linearGradient id="gradBaseline" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#334155" stopOpacity={0.15} />
-                    <stop offset="95%" stopColor="#334155" stopOpacity={0} />
+                  <linearGradient id="gradBaseline"  x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#334155"   stopOpacity={0.15} />
+                    <stop offset="95%" stopColor="#334155"   stopOpacity={0}    />
                   </linearGradient>
                   <linearGradient id="gradHistorical" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={AMBER} stopOpacity={0.2} />
-                    <stop offset="95%" stopColor={AMBER} stopOpacity={0} />
+                    <stop offset="5%"  stopColor={AMBER}     stopOpacity={0.2} />
+                    <stop offset="95%" stopColor={AMBER}     stopOpacity={0}   />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="2 4" stroke={BORDER} />
                 <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 9 }} />
                 <YAxis tick={{ fill: MUTED, fontSize: 9 }} tickFormatter={v => `${v}M`} />
                 <Tooltip content={<HudTooltip />} />
+                {/* Vertical reference line marking the actual/forecast boundary */}
                 <ReferenceLine x={2024} stroke={`${CYAN}40`} strokeDasharray="3 2" label={{ value: '◀ ACTUAL  FORECAST ▶', position: 'top', fill: MUTED, fontSize: 9 }} />
-                <Area type="monotone" dataKey="historical" stroke={AMBER} strokeWidth={1.5} fill="url(#gradHistorical)" name="historical" connectNulls={false} dot={false} />
-                <Area type="monotone" dataKey="baseline" stroke="#334155" strokeWidth={1} strokeDasharray="3 2" fill="url(#gradBaseline)" name="baseline" connectNulls={false} dot={false} />
-                <Area type="monotone" dataKey="forecast" stroke={CYAN} strokeWidth={2} fill="url(#gradForecast)" name="forecast" connectNulls={false} dot={false} />
+                <Area type="monotone" dataKey="historical" stroke={AMBER}     strokeWidth={1.5} fill="url(#gradHistorical)" name="historical" connectNulls={false} dot={false} />
+                <Area type="monotone" dataKey="baseline"   stroke="#334155"   strokeWidth={1}   fill="url(#gradBaseline)"   name="baseline"   connectNulls={false} dot={false} strokeDasharray="3 2" />
+                <Area type="monotone" dataKey="forecast"   stroke={CYAN}      strokeWidth={2}   fill="url(#gradForecast)"   name="forecast"   connectNulls={false} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
 
+          {/* Driver contributions line chart — shows how much each multiplier group
+              is contributing to growth relative to the 2024 base */}
           <div style={{ background: SURF, border: `1px solid ${BORDER}`, padding: '14px 16px 10px' }}>
             <div style={{ borderLeft: `3px solid ${AMBER}`, paddingLeft: 10, marginBottom: 12 }}>
               <h2 style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#fff', letterSpacing: 2 }}>DRIVER CONTRIBUTIONS</h2>
@@ -279,13 +342,14 @@ export default function App() {
                 <YAxis tick={{ fill: MUTED, fontSize: 9 }} tickFormatter={v => `${v}%`} />
                 <Tooltip content={<HudTooltip />} />
                 <ReferenceLine y={0} stroke={BORDER} />
-                <Line type="monotone" dataKey="MACRO" stroke={CYAN} strokeWidth={1.5} dot={false} />
-                <Line type="monotone" dataKey="AIRLINE" stroke={GREEN} strokeWidth={1.5} dot={false} />
+                <Line type="monotone" dataKey="MACRO"   stroke={CYAN}             strokeWidth={1.5} dot={false} />
+                <Line type="monotone" dataKey="AIRLINE" stroke={GREEN}            strokeWidth={1.5} dot={false} />
                 <Line type="monotone" dataKey="AIRPORT" stroke={ACCENT_MAP.purple} strokeWidth={1.5} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
 
+          {/* Year-by-year data table */}
           <div style={{ background: SURF, border: `1px solid ${BORDER}` }}>
             <div style={{ borderBottom: `1px solid ${BORDER}`, borderLeft: `3px solid ${ACCENT_MAP.purple}`, padding: '10px 14px' }}>
               <h2 style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#fff', letterSpacing: 2 }}>YEAR-BY-YEAR DATA</h2>
@@ -301,6 +365,7 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
+                  {/* Historical rows — BASELINE and DELTA columns are n/a for actuals */}
                   {HISTORICAL_DATA.map((h, i) => {
                     const prevM = i === 0 ? null : HISTORICAL_DATA[i - 1].passengersM;
                     const yoy   = prevM ? ((h.passengersM / prevM - 1) * 100) : null;
@@ -318,15 +383,20 @@ export default function App() {
                       </tr>
                     );
                   })}
+
+                  {/* Divider row separating actuals from the forecast period */}
                   <tr style={{ background: `${CYAN}08`, borderBottom: `1px dashed ${CYAN}40` }}>
                     <td colSpan={8} style={{ padding: '4px 10px', fontSize: 8, color: CYAN, letterSpacing: 2 }}>▼ FORECAST PERIOD</td>
                   </tr>
+
+                  {/* Forecast rows — index 0 is the 2024 base year (not an estimate) */}
                   {forecast.map((f, i) => {
-                    const b      = baseline[i];
-                    const delta  = parseFloat((f.passengersM - b.passengersM).toFixed(2));
+                    const b       = baseline[i];
+                    const delta   = parseFloat((f.passengersM - b.passengersM).toFixed(2));
+                    // For the base year (i=0) compare against the last historical data point.
                     const prevPax = i === 0 ? HISTORICAL_DATA[HISTORICAL_DATA.length - 1].passengersM * 1_000_000 : forecast[i - 1].passengers;
-                    const yoy    = ((f.passengers / prevPax - 1) * 100);
-                    const risk   = riskBadge(yoy);
+                    const yoy     = ((f.passengers / prevPax - 1) * 100);
+                    const risk    = riskBadge(yoy);
                     return (
                       <tr key={f.year} style={{ borderBottom: `1px solid ${BORDER}`, background: i % 2 === 0 ? 'transparent' : `${CYAN}04` }}>
                         <td style={{ textAlign: 'center', padding: '5px 10px', color: MUTED, fontSize: 8 }}>{String(HISTORICAL_DATA.length + 1 + i).padStart(2, '0')}</td>
@@ -344,6 +414,7 @@ export default function App() {
               </table>
             </div>
           </div>
+
         </div>
       </div>
     </div>
